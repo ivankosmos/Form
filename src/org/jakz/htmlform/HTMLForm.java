@@ -29,32 +29,54 @@ public class HTMLForm extends Form
 	
 	public String toString()
 	{
-		generate();
 		return workingElement.toString();
 	}
 	
-	private void generate()
+	public Element getWorkingElement()
 	{
-		//TODO
-		//workingElement.appendElement("");
+		return workingElement;
 	}
 	
-	//TODO
-	private Element generateHTMLForForm(HTMLForm f, Element containerHead, Element rootElement) throws HTMLFormException
+	public HTMLForm generate() throws HTMLFormException
 	{
-		if(f.type==FieldType.container)
+		workingElement=generateHTMLForForm(this, workingElement);
+		return this;
+	}
+	
+	protected static Element generateHTMLForForm(Form form, Element containerHead) throws HTMLFormException
+	{
+		if(form.type==null)
+			return containerHead;
+		
+		Element currentElement = generateHTMLForField(form,containerHead);
+		
+		if(form.getHasContent())
 		{
-			Element form  = containerHead.appendElement("form").attr("name", f.getGlobalID()).attr("id", f.getGlobalID());
-			return form;
+			for(int i=0; i<form.content.size(); i++)
+			{
+				HTMLForm currentForm = (HTMLForm)form.content.getValueAt(i);
+				HTMLForm.generateHTMLForForm(currentForm, currentElement);
+			}
 		}
-		else if(f.type==FieldType.single)
+		
+		return containerHead;
+	}
+	
+	protected static Element generateHTMLForField(Form field, Element containerHead) throws HTMLFormException
+	{
+		Element currentElement;
+		if(field.type==FieldType.FORM)
 		{
-			Element formElement;
-			//if()
-			formElement = containerHead.appendElement("form").attr("name", f.getGlobalID()).attr("id", f.getGlobalID());
-			return formElement;
+			currentElement  = containerHead.appendElement("form").attr("name", field.getGlobalID()).attr("id", field.getGlobalID());
+		}
+		else if(field.type==FieldType.QUERY)
+		{
+			currentElement = containerHead.appendElement("fieldset").attr("name", field.getGlobalID()).attr("id", field.getGlobalID());
+			currentElement.appendElement("legend").html(field.name);
+			
 		}
 		else
-			throw new HTMLFormException("Unrecognizable form type: "+f.type.toString());
+			throw new HTMLFormException("Unrecognizable form type: "+field.type.toString());
+		return currentElement;
 	}
 }
