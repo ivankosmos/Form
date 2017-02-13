@@ -1,5 +1,7 @@
 package org.jakz.htmlform;
 
+import java.io.UnsupportedEncodingException;
+import java.net.URLEncoder;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
@@ -18,17 +20,17 @@ public class HTMLForm extends Form
 	
 	
 	public boolean settingGenerateViewLinks;
-	public String settingViewLinkSrc,settingViewLinkKeyArgumentName,settingViewLinkOnclickArgumentFunction;
-	public ArrayList<String> settingViewLinkKeys;
+	public String settingHTMLFormSrc,settingHTMLFormArgumentNameId,settingHTMLFormArgumentFunction;
+	//public ArrayList<String> settingViewLinkKeys;
 	
 	protected void init()
 	{
 		workingElement=null;
 		settingGenerateViewLinks=true;
-		settingViewLinkSrc ="";
-		settingViewLinkKeyArgumentName="HTMLFormEditRow";
-		settingViewLinkKeys=new ArrayList<String>();
-		settingViewLinkOnclickArgumentFunction="HTMLFormEditRow";
+		settingHTMLFormSrc ="";
+		settingHTMLFormArgumentNameId="HTMLFormArgument";
+		//settingViewLinkKeys=new ArrayList<String>();
+		settingHTMLFormArgumentFunction="HTMLFormSubmit";
 	}
 	
 	public HTMLForm(String nid, FieldType ntype)
@@ -66,28 +68,80 @@ public class HTMLForm extends Form
 		return workingElement;
 	}
 	
+	public HTMLForm initWorkingElement()
+	{
+		if(workingElement==null)
+			workingElement = new Element(Tag.valueOf("div"),"").attr("name", id);
+		
+		return this;
+	}
+	
+	public HTMLForm generateHTMLFormJSHTML() throws HTMLFormException
+	{
+		workingElement.appendChild(getHTMLFormJSHTML(this));
+		return this;
+	}
+	
+	public HTMLForm generateHTMLFormHTML() throws HTMLFormException
+	{
+		workingElement.appendChild(getHTMLFormHTML(this));
+		return this;
+	}
+	
 	public HTMLForm generateHTMLForm() throws HTMLFormException
 	{
-		workingElement=getFormHTML(this,this);
+		workingElement.appendChild(getFormHTML(this,this));
 		return this;
 	}
 	
 	public HTMLForm generateHTMLView() throws HTMLFormException
 	{
-		workingElement=getViewHTML(this,this);
+		workingElement.appendChild(getViewHTML(this,this));
 		return this;
 	}
 	
-	protected Element getFormHTML(HTMLForm source, HTMLForm masterForm) throws HTMLFormException
+	
+	protected static Element getHTMLFormJSHTML(HTMLForm source)
 	{
-		Element toreturn;
+		Element script = new Element(Tag.valueOf("script"),"").attr("type", "text/javascript");
+		
+		String html = "";
+		
+		html+="function HTMLFormSubmit(var arg)";
+		html+="{";
+		html+="alert('KLICK!');";
+		//html+="window.location = '"+settingViewLinkSrc+"?"+settingViewLinkKeyArgumentNameId+"='+arg;";
+		html=html+"var formE = document.getElementById('"+source.id+"');";
+		html=html+"var inputE = document.getElementById('"+source.settingHTMLFormArgumentNameId+"');";
+		html+="inputE.value=arg;";
+		html+="formE.submit();";
+		html+="}";
+		
+		
+		script.html(html);
+		
+		return script;
+	}
+	
+	protected static Element getHTMLFormHTML(HTMLForm source)
+	{
+		Element formE = new Element(Tag.valueOf("form"),"").attr("action",source.settingHTMLFormSrc).attr("method", "post").attr("id", source.id);
+		
+		formE.appendElement("input").attr("type", "hidden").attr("name", source.settingHTMLFormArgumentNameId).attr("id", source.settingHTMLFormArgumentNameId);
+		
+		return formE;
+	}
+	
+	protected static Element getFormHTML(HTMLForm source, HTMLForm masterForm) throws HTMLFormException
+	{
+		Element formElementToReturn;
 		if(source.type==Form.FieldType.QUERY)
 		{
-			toreturn = new Element(Tag.valueOf("fieldset"),"");
-			toreturn.attr("name", source.id).attr("id",source.getGlobalID());
+			formElementToReturn = new Element(Tag.valueOf("fieldset"),"");
+			formElementToReturn.attr("name", source.id).attr("id",source.getGlobalID()).attr("form",masterForm.id);
 			//toreturn.appendElement("legend").html(source.name).attr("name","name");
-			toreturn.appendElement("div").html(source.name).attr("name","name");
-			toreturn.appendElement("div").html(source.text).attr("name","text");
+			formElementToReturn.appendElement("div").html(source.name).attr("name","name");
+			formElementToReturn.appendElement("div").html(source.text).attr("name","text");
 			
 			for(int coli=0; coli<source.content.size(); coli++)
 			{
@@ -96,7 +150,7 @@ public class HTMLForm extends Form
 				if(!columnForm.writeable)
 					continue;
 				
-				Element valcontainer = toreturn.appendElement("div").attr("name","valcontainer");
+				Element valcontainer = formElementToReturn.appendElement("div").attr("name","valcontainer");
 				
 				
 				
@@ -122,29 +176,33 @@ public class HTMLForm extends Form
 					inputElement = valcontainer.appendElement("input").attr("type", "number");
 				else throw new HTMLFormException("Wrong value type for HTML generator. Type "+type+" form "+source.id);
 				
-				inputElement.attr("name",columnForm.getGlobalID()).attr("id",columnForm.getGlobalID());
+				inputElement.attr("name",columnForm.id).attr("id",columnForm.getGlobalID()).attr("form",masterForm.id);
 			}
 			
 		}
 		else if(source.type==Form.FieldType.INFO)
 		{
-			toreturn = new Element(Tag.valueOf("div"),"").attr("id", source.getGlobalID()).attr("name", source.getGlobalID()).html(source.text);
+			formElementToReturn = new Element(Tag.valueOf("div"),"").attr("name", source.id).html(source.text);
 		}
 		else if(source.type==Form.FieldType.FORM)
 		{
-			toreturn = new Element(Tag.valueOf("form"),"").attr("id", source.getGlobalID()).attr("name", source.getGlobalID());
+			//toreturn = new Element(Tag.valueOf("form"),"").attr("id", source.getGlobalID()).attr("name", source.getGlobalID());
+			formElementToReturn = new Element(Tag.valueOf("div"),"").attr("name", source.id);
+
+			
 			for(int icontent=0; icontent<source.content.size(); icontent++)
 			{
 				Element contentElement = getFormHTML(new HTMLForm(source.content.getAt(icontent).value),masterForm);
-				toreturn.appendChild(contentElement);
+				formElementToReturn.appendChild(contentElement);
 			}
 		}
 		else throw new HTMLFormException("Unrecognizable Form type "+source.type);
 		
-		return toreturn;
+		return formElementToReturn;
 	}
 	
-	protected Element getViewHTML(HTMLForm source, HTMLForm masterForm) throws HTMLFormException
+	//TODO
+	protected static Element getViewHTML(HTMLForm source, HTMLForm masterForm) throws HTMLFormException
 	{
 		Element toreturn;
 		if(source.type==Form.FieldType.QUERY)
@@ -158,9 +216,18 @@ public class HTMLForm extends Form
 			//}
 			
 			
-			toreturn =  new Element(Tag.valueOf("tr"),"").attr("name", source.getGlobalID()).attr("id",source.getGlobalID());
+			toreturn =  new Element(Tag.valueOf("tr"),"").attr("name", source.id).attr("id",source.getGlobalID());
 			if(masterForm.settingGenerateViewLinks)
-				toreturn.attr("onclick", "HTMLFormEditRow();");
+			{
+				try
+				{
+				toreturn.attr("onclick", "HTMLFormEditRow('"+URLEncoder.encode(source.toJSONObject().toString(),"UTF-8") +"');");
+				}
+				catch (UnsupportedEncodingException e)
+				{
+					throw new HTMLFormException("Unsupported encoding", e);
+				}
+			}
 			elementHead = toreturn;
 			
 
@@ -195,11 +262,11 @@ public class HTMLForm extends Form
 		}
 		else if(source.type==Form.FieldType.INFO)
 		{
-			toreturn = new Element(Tag.valueOf("div"),"").attr("id", source.getGlobalID()).attr("name", source.getGlobalID()).html(source.text);
+			toreturn = new Element(Tag.valueOf("div"),"").attr("id", source.getGlobalID()).attr("name", source.id).html(source.text);
 		}
 		else if(source.type==Form.FieldType.FORM)
 		{
-			toreturn = new Element(Tag.valueOf("table"),"").attr("id", source.getGlobalID()).attr("name", source.getGlobalID());
+			toreturn = new Element(Tag.valueOf("table"),"").attr("name", source.id);
 			Element tbody = toreturn.appendElement("tbody");
 			for(int icontent=0; icontent<source.content.size(); icontent++)
 			{
@@ -212,28 +279,13 @@ public class HTMLForm extends Form
 		return toreturn;
 	}
 	
-	public Element getHTMLFormJS()
-	{
-		Element script = new Element(Tag.valueOf("script"),"").attr("type", "text/javascript");
-		
-		String html = "";
-		
-		html+="function HTMLFormEditRow()";
-		html+="{";
-		html+="alert('KLICK!');";
-		html+="window.location = '"+settingViewLinkSrc+"?"+settingViewLinkKeyArgumentName+"=hej';";
-		html+="}";
-		
-		
-		script.html(html);
-		
-		return script;
-	}
+	
 	
 	/**
 	 * For regtesting
 	 * @param args
 	 * @throws HTMLFormException
+	 * @throws  
 	 */
 	public static void main(String[] args) throws HTMLFormException
 	{

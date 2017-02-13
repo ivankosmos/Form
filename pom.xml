@@ -30,7 +30,7 @@
   	<dependency>
   		<groupId>org.jakz.common</groupId>
   		<artifactId>org.jakz.common</artifactId>
-  		<version>1.8.0</version>
+  		<version>1.9.0</version>
   	</dependency>
   </dependencies>
 </project>
