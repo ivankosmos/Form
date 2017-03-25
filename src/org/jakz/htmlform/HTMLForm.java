@@ -17,6 +17,7 @@ public class HTMLForm extends Form
 {
 	
 	private Element workingElement;
+	private HTMLForm masterHTMLForm;
 	
 	
 	public boolean settingGenerateViewLinks;
@@ -26,6 +27,7 @@ public class HTMLForm extends Form
 	protected void init()
 	{
 		workingElement=null;
+		masterHTMLForm=this;
 		settingGenerateViewLinks=true;
 		settingHTMLFormSrc ="";
 		settingHTMLFormArgumentNameId="HTMLFormArgument";
@@ -53,9 +55,20 @@ public class HTMLForm extends Form
 		return this;
 	}
 	
-	public String getGlobalID()
+	public HTMLForm setMasterHTMLForm(HTMLForm nMasterHTMLForm)
 	{
-		return StringEscapeUtils.escapeHtml(super.getGlobalID());
+		masterHTMLForm=nMasterHTMLForm;
+		return this;
+	}
+	
+	public HTMLForm getMasterHTMLForm()
+	{
+		return masterHTMLForm;
+	}
+	
+	public String getHTMLGlobalID()
+	{
+		return StringEscapeUtils.escapeHtml(super.getHTMLGlobalID());
 	}
 	
 	public String toString()
@@ -78,30 +91,48 @@ public class HTMLForm extends Form
 	
 	public HTMLForm generateHTMLFormJSHTML() throws HTMLFormException
 	{
-		workingElement.appendChild(getHTMLFormJSHTML(this));
+		if(workingElement!=null)
+			workingElement.appendChild(getHTMLFormJSHTML());
+		else
+			workingElement=getHTMLFormJSHTML();
 		return this;
 	}
 	
 	public HTMLForm generateHTMLFormHTML() throws HTMLFormException
 	{
-		workingElement.appendChild(getHTMLFormHTML(this));
+		if(workingElement!=null)
+			workingElement.appendChild(getHTMLFormHTML());
+		else
+			workingElement=getHTMLFormHTML();
 		return this;
 	}
 	
 	public HTMLForm generateHTMLForm() throws HTMLFormException
 	{
-		workingElement.appendChild(getFormHTML(this,this));
+		if(workingElement!=null)
+			workingElement.appendChild(getFormHTML());
+		else
+			workingElement=getFormHTML();
 		return this;
 	}
 	
 	public HTMLForm generateHTMLView() throws HTMLFormException
 	{
-		workingElement.appendChild(getViewHTML(this,this));
+		
+		if(workingElement!=null)
+			workingElement.appendChild(getViewHTML());
+		else
+			workingElement=getViewHTML();
 		return this;
 	}
 	
 	
-	protected static Element getHTMLFormJSHTML(HTMLForm source)
+	public Element getHTMLFormJSHTML()
+	{
+		return HTMLForm.getHTMLFormJSHTML(masterHTMLForm);
+	}
+	
+	protected static Element getHTMLFormJSHTML(HTMLForm masterForm)
 	{
 		Element script = new Element(Tag.valueOf("script"),"").attr("type", "text/javascript");
 		
@@ -111,8 +142,8 @@ public class HTMLForm extends Form
 		html+="{";
 		html+="alert('KLICK!');";
 		//html+="window.location = '"+settingViewLinkSrc+"?"+settingViewLinkKeyArgumentNameId+"='+arg;";
-		html=html+"var formE = document.getElementById('"+source.id+"');";
-		html=html+"var inputE = document.getElementById('"+source.settingHTMLFormArgumentNameId+"');";
+		html=html+"var formE = document.getElementById('"+masterForm.id+"');";
+		html=html+"var inputE = document.getElementById('"+masterForm.settingHTMLFormArgumentNameId+"');";
 		html+="inputE.value=arg;";
 		html+="formE.submit();";
 		html+="}";
@@ -123,22 +154,33 @@ public class HTMLForm extends Form
 		return script;
 	}
 	
-	protected static Element getHTMLFormHTML(HTMLForm source)
+	public Element getHTMLFormHTML()
 	{
-		Element formE = new Element(Tag.valueOf("form"),"").attr("action",source.settingHTMLFormSrc).attr("method", "post").attr("id", source.id);
+		return HTMLForm.getHTMLFormHTML(masterHTMLForm);
+	}
+	
+	protected static Element getHTMLFormHTML(HTMLForm masterForm)
+	{
+		Element formE = new Element(Tag.valueOf("form"),"").attr("action",masterForm.settingHTMLFormSrc).attr("method", "post").attr("id", masterForm.id);
 		
-		formE.appendElement("input").attr("type", "hidden").attr("name", source.settingHTMLFormArgumentNameId).attr("id", source.settingHTMLFormArgumentNameId);
+		formE.appendElement("input").attr("type", "hidden").attr("name", masterForm.settingHTMLFormArgumentNameId).attr("id", masterForm.settingHTMLFormArgumentNameId);
 		
 		return formE;
 	}
 	
+	public Element getFormHTML() throws HTMLFormException
+	{
+		return HTMLForm.getFormHTML(this, masterHTMLForm);
+	}
+	
+	//TODO
 	protected static Element getFormHTML(HTMLForm source, HTMLForm masterForm) throws HTMLFormException
 	{
 		Element formElementToReturn;
-		if(source.type==Form.FieldType.QUERY)
+		if(source.type==Form.FieldType.QRY)
 		{
 			formElementToReturn = new Element(Tag.valueOf("fieldset"),"");
-			formElementToReturn.attr("name", source.id).attr("id",source.getGlobalID()).attr("form",masterForm.id);
+			formElementToReturn.attr("name", source.id).attr("id",source.getHTMLGlobalID()).attr("form",masterForm.id);
 			//toreturn.appendElement("legend").html(source.name).attr("name","name");
 			formElementToReturn.appendElement("div").html(source.name).attr("name","name");
 			formElementToReturn.appendElement("div").html(source.text).attr("name","text");
@@ -176,15 +218,17 @@ public class HTMLForm extends Form
 					inputElement = valcontainer.appendElement("input").attr("type", "number");
 				else throw new HTMLFormException("Wrong value type for HTML generator. Type "+type+" form "+source.id);
 				
-				inputElement.attr("name",columnForm.id).attr("id",columnForm.getGlobalID()).attr("form",masterForm.id);
+				inputElement.attr("name",columnForm.id).attr("id",columnForm.getHTMLGlobalID()).attr("form",masterForm.id);
 			}
 			
 		}
+		/*
 		else if(source.type==Form.FieldType.INFO)
 		{
 			formElementToReturn = new Element(Tag.valueOf("div"),"").attr("name", source.id).html(source.text);
 		}
-		else if(source.type==Form.FieldType.FORM)
+		*/
+		else if(source.type==Form.FieldType.FRM)
 		{
 			//toreturn = new Element(Tag.valueOf("form"),"").attr("id", source.getGlobalID()).attr("name", source.getGlobalID());
 			formElementToReturn = new Element(Tag.valueOf("div"),"").attr("name", source.id);
@@ -201,13 +245,67 @@ public class HTMLForm extends Form
 		return formElementToReturn;
 	}
 	
-	//TODO
+
+	public Element getViewHTML() throws HTMLFormException
+	{
+		return HTMLForm.getViewHTML(this, masterHTMLForm);
+	}
+	
 	protected static Element getViewHTML(HTMLForm source, HTMLForm masterForm) throws HTMLFormException
 	{
 		Element toreturn;
-		if(source.type==Form.FieldType.QUERY)
+		
+		if(source.type==FieldType.VAR)
 		{
-			Element elementHead;
+			toreturn =  new Element(Tag.valueOf("td"),"").attr("name", source.id).attr("id",source.id);
+			TypedValue tv = source.value.get(0); //Only takes the first
+			int type = tv.getType();
+			
+			if(type==java.sql.Types.INTEGER)
+			{
+				toreturn.attr("type", "number");
+				if(tv.getValueInteger()!=null)
+					toreturn.html(""+tv.getValueInteger());
+			}
+			else if(type==java.sql.Types.DOUBLE)
+			{
+				toreturn.attr("type", "number");
+				if(tv.getValueDouble()!=null)
+					toreturn.html(""+tv.getValueDouble());
+			}
+			else if(type==java.sql.Types.BOOLEAN)
+			{
+				toreturn.attr("type", "checkbox");
+				if(tv.getValueBoolean()!=null)
+					toreturn.html(""+tv.getValueBoolean());
+			}
+			else if(type==java.sql.Types.VARCHAR||type==java.sql.Types.NVARCHAR||type==-16) //TODO SQL Server returns -16 for nvarchar(max)
+			{
+				toreturn.attr("type", "text");
+				if(tv.getValueVarchar()!=null)
+					toreturn.html(""+tv.getValueVarchar());
+			}
+			else if(type==java.sql.Types.TIMESTAMP)
+			{
+				toreturn.attr("type", "datetime");
+				if(tv.getValueTimestamp()!=null)
+				{
+					Date d = new Date(tv.getValueTimestamp());
+					SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
+					toreturn.html(df.format(d));
+				}
+			}
+			else if(type==java.sql.Types.BIGINT)
+			{
+				toreturn.attr("type", "number");
+				if(tv.getValueBigint()!=null)
+					toreturn.html(""+tv.getValueBigint());
+			}
+			else throw new HTMLFormException("Wrong value type for HTML generator. Type "+type+" form "+source.id+" column "+source.id);
+			
+		}
+		else if(source.type==FieldType.QRY)
+		{
 			//if(masterForm.settingGenerateViewLinks)
 			//{
 				//toreturn=new Element(Tag.valueOf("a"),"").attr("href",masterForm.settingViewLinkSrc).attr("target", "_blank");
@@ -216,7 +314,7 @@ public class HTMLForm extends Form
 			//}
 			
 			
-			toreturn =  new Element(Tag.valueOf("tr"),"").attr("name", source.id).attr("id",source.getGlobalID());
+			toreturn =  new Element(Tag.valueOf("tr"),"").attr("name", source.id).attr("id",source.getHTMLGlobalID());
 			if(masterForm.settingGenerateViewLinks)
 			{
 				try
@@ -228,50 +326,32 @@ public class HTMLForm extends Form
 					throw new HTMLFormException("Unsupported encoding", e);
 				}
 			}
-			elementHead = toreturn;
 			
-
-			for(int coli=0; coli<source.content.size(); coli++)
+			for(int icontent=0; icontent<source.content.size(); icontent++)
 			{
-				Form columnForm = source.content.getValueAt(coli);
-				TypedValue tv = columnForm.value.get(0); //Only takes the first
-				int type = tv.getType();
+				HTMLForm currentForm = new HTMLForm(source.content.getAt(icontent).value);
 				
-				Element tableData = elementHead.appendElement("td");
-				
-				if(type==java.sql.Types.INTEGER)
-					tableData.attr("type", "number").html(""+tv.getValueInteger());
-				else if(type==java.sql.Types.DOUBLE)
-					tableData.attr("type", "number").html(""+tv.getValueDouble());
-				else if(type==java.sql.Types.BOOLEAN)
-					tableData.attr("type", "checkbox").html(""+tv.getValueBoolean());
-				else if(type==java.sql.Types.VARCHAR||type==java.sql.Types.NVARCHAR||type==-16) //TODO SQL Server returns -16 for nvarchar(max)
-					tableData.attr("type", "text").html(""+tv.getValueVarchar());
-				else if(type==java.sql.Types.TIMESTAMP)
+				if(currentForm.type==FieldType.VAR)
 				{
-					Date d = new Date(tv.getValueTimestamp());
-					SimpleDateFormat df = new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSSZ");
-					tableData.attr("type", "datetime").html(df.format(d));
+					Element contentElement = HTMLForm.getViewHTML(currentForm,masterForm);
+					toreturn.appendChild(contentElement);
 				}
-				else if(type==java.sql.Types.BIGINT)
-					tableData.attr("type", "number").html(""+tv.getValueBigint());
-				else throw new HTMLFormException("Wrong value type for HTML generator. Type "+type+" form "+source.id+" column "+columnForm.id);
-				
-				tableData.attr("name",columnForm.getGlobalID()).attr("id",columnForm.getGlobalID());
+				else throw new HTMLFormException("The content of a query Form must be a variable Form");
 			}
 		}
-		else if(source.type==Form.FieldType.INFO)
-		{
-			toreturn = new Element(Tag.valueOf("div"),"").attr("id", source.getGlobalID()).attr("name", source.id).html(source.text);
-		}
-		else if(source.type==Form.FieldType.FORM)
+		else if(source.type==FieldType.FRM)
 		{
 			toreturn = new Element(Tag.valueOf("table"),"").attr("name", source.id);
 			Element tbody = toreturn.appendElement("tbody");
 			for(int icontent=0; icontent<source.content.size(); icontent++)
 			{
-				Element contentElement = getViewHTML(new HTMLForm(source.content.getAt(icontent).value),masterForm);
-				tbody.appendChild(contentElement);
+				HTMLForm currentForm = new HTMLForm(source.content.getAt(icontent).value);
+				if(currentForm.type==FieldType.QRY)
+				{
+					Element contentElement = HTMLForm.getViewHTML(currentForm,masterForm);
+					tbody.appendChild(contentElement);
+				}
+				else throw new HTMLFormException("The content of a form Form must be a query Form");
 			}
 		}
 		else throw new HTMLFormException("Unrecognizable Form type "+source.type);
@@ -289,22 +369,26 @@ public class HTMLForm extends Form
 	 */
 	public static void main(String[] args) throws HTMLFormException
 	{
-		HTMLForm f = new HTMLForm("f1", FieldType.FORM);
+		HTMLForm f = new HTMLForm("f1", FieldType.FRM);
 		Form q;
 		TypedValue val;
-		q=new Form("q1", FieldType.QUERY);
+		q=new Form("q1", FieldType.QRY);
 		q.name="Question 1";
 		q.text="What is your name?";
+		
+		Form valF = new HTMLForm("1", FieldType.VAR);
+		
 		val=new TypedValue(java.sql.Types.VARCHAR);
-		q.value.add(val);
-		f.addContent(q);
+		valF.value.add(val);
+		q.add(valF);
+		f.add(q);
 		
 		System.out.println(f.generateHTMLView().toString());
 		String jsonString = f.toJSONObject().toString();
 		System.out.println(jsonString);
 		
 		
-		f = new HTMLForm("f2", FieldType.FORM);
+		f = new HTMLForm("f2", FieldType.FRM);
 		f.fromJSONObject(new JSONObject(jsonString));
 		System.out.println(f.generateHTMLView().toString());
 		jsonString = f.toJSONObject().toString();
