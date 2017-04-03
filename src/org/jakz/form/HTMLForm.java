@@ -7,7 +7,6 @@ import java.util.ArrayList;
 import java.util.Date;
 
 import org.apache.commons.lang.StringEscapeUtils;
-import org.jakz.common.Form;
 import org.jakz.common.JSONObject;
 import org.jakz.common.TypedValue;
 import org.jsoup.nodes.Element;

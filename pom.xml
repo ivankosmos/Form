@@ -31,7 +31,7 @@
   		<version>2.2.0</version>
   	</dependency>
   </dependencies>
-  <artifactId>Form</artifactId>
+  <artifactId>org.jakz.form</artifactId>
   <description>org.jakz.form</description>
   <organization>
   	<name>jakz</name>
