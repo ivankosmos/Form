@@ -1,4 +1,4 @@
-package org.jakz.htmlform;
+package org.jakz.form;
 
 import java.io.UnsupportedEncodingException;
 import java.net.URLEncoder;
@@ -89,7 +89,7 @@ public class HTMLForm extends Form
 		return this;
 	}
 	
-	public HTMLForm generateHTMLFormJSHTML() throws HTMLFormException
+	public HTMLForm generateHTMLFormJSHTML() throws FormException
 	{
 		if(workingElement!=null)
 			workingElement.appendChild(getHTMLFormJSHTML());
@@ -98,7 +98,7 @@ public class HTMLForm extends Form
 		return this;
 	}
 	
-	public HTMLForm generateHTMLFormHTML() throws HTMLFormException
+	public HTMLForm generateHTMLFormHTML() throws FormException
 	{
 		if(workingElement!=null)
 			workingElement.appendChild(getHTMLFormHTML());
@@ -107,7 +107,7 @@ public class HTMLForm extends Form
 		return this;
 	}
 	
-	public HTMLForm generateHTMLForm() throws HTMLFormException
+	public HTMLForm generateHTMLForm() throws FormException
 	{
 		if(workingElement!=null)
 			workingElement.appendChild(getFormHTML());
@@ -116,7 +116,7 @@ public class HTMLForm extends Form
 		return this;
 	}
 	
-	public HTMLForm generateHTMLView() throws HTMLFormException
+	public HTMLForm generateHTMLView() throws FormException
 	{
 		
 		if(workingElement!=null)
@@ -168,13 +168,13 @@ public class HTMLForm extends Form
 		return formE;
 	}
 	
-	public Element getFormHTML() throws HTMLFormException
+	public Element getFormHTML() throws FormException
 	{
 		return HTMLForm.getFormHTML(this, masterHTMLForm);
 	}
 	
 	//TODO
-	protected static Element getFormHTML(HTMLForm source, HTMLForm masterForm) throws HTMLFormException
+	protected static Element getFormHTML(HTMLForm source, HTMLForm masterForm) throws FormException
 	{
 		Element formElementToReturn;
 		if(source.type==Form.FieldType.QRY)
@@ -216,7 +216,7 @@ public class HTMLForm extends Form
 					inputElement = valcontainer.appendElement("input").attr("type", "datetime");
 				else if(type==java.sql.Types.BIGINT)
 					inputElement = valcontainer.appendElement("input").attr("type", "number");
-				else throw new HTMLFormException("Wrong value type for HTML generator. Type "+type+" form "+source.id);
+				else throw new FormException("Wrong value type for HTML generator. Type "+type+" form "+source.id);
 				
 				inputElement.attr("name",columnForm.id).attr("id",columnForm.getHTMLGlobalID()).attr("form",masterForm.id);
 			}
@@ -240,18 +240,18 @@ public class HTMLForm extends Form
 				formElementToReturn.appendChild(contentElement);
 			}
 		}
-		else throw new HTMLFormException("Unrecognizable Form type "+source.type);
+		else throw new FormException("Unrecognizable Form type "+source.type);
 		
 		return formElementToReturn;
 	}
 	
 
-	public Element getViewHTML() throws HTMLFormException
+	public Element getViewHTML() throws FormException
 	{
 		return HTMLForm.getViewHTML(this, masterHTMLForm);
 	}
 	
-	protected static Element getViewHTML(HTMLForm source, HTMLForm masterForm) throws HTMLFormException
+	protected static Element getViewHTML(HTMLForm source, HTMLForm masterForm) throws FormException
 	{
 		Element toreturn;
 		
@@ -301,7 +301,7 @@ public class HTMLForm extends Form
 				if(tv.getValueBigint()!=null)
 					toreturn.html(""+tv.getValueBigint());
 			}
-			else throw new HTMLFormException("Wrong value type for HTML generator. Type "+type+" form "+source.id+" column "+source.id);
+			else throw new FormException("Wrong value type for HTML generator. Type "+type+" form "+source.id+" column "+source.id);
 			
 		}
 		else if(source.type==FieldType.QRY)
@@ -323,7 +323,7 @@ public class HTMLForm extends Form
 				}
 				catch (UnsupportedEncodingException e)
 				{
-					throw new HTMLFormException("Unsupported encoding", e);
+					throw new FormException("Unsupported encoding", e);
 				}
 			}
 			
@@ -336,7 +336,7 @@ public class HTMLForm extends Form
 					Element contentElement = HTMLForm.getViewHTML(currentForm,masterForm);
 					toreturn.appendChild(contentElement);
 				}
-				else throw new HTMLFormException("The content of a query Form must be a variable Form");
+				else throw new FormException("The content of a query Form must be a variable Form");
 			}
 		}
 		else if(source.type==FieldType.FRM)
@@ -351,10 +351,10 @@ public class HTMLForm extends Form
 					Element contentElement = HTMLForm.getViewHTML(currentForm,masterForm);
 					tbody.appendChild(contentElement);
 				}
-				else throw new HTMLFormException("The content of a form Form must be a query Form");
+				else throw new FormException("The content of a form Form must be a query Form");
 			}
 		}
-		else throw new HTMLFormException("Unrecognizable Form type "+source.type);
+		else throw new FormException("Unrecognizable Form type "+source.type);
 		
 		return toreturn;
 	}
@@ -364,10 +364,10 @@ public class HTMLForm extends Form
 	/**
 	 * For regtesting
 	 * @param args
-	 * @throws HTMLFormException
+	 * @throws FormException
 	 * @throws  
 	 */
-	public static void main(String[] args) throws HTMLFormException
+	public static void main(String[] args) throws FormException
 	{
 		HTMLForm f = new HTMLForm("f1", FieldType.FRM);
 		Form q;

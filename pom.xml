@@ -1,10 +1,8 @@
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
-  <groupId>org.jakz.htmlform</groupId>
-  <artifactId>HTMLForm</artifactId>
-  <version>1.0.0</version>
-  <name>HTMLForm</name>
-  <description>org.jakz.htmlform</description>
+  <groupId>org.jakz.form</groupId>
+  <version>2.0.0</version>
+  <name>org.jakz.form</name>
   <properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
   </properties>
@@ -30,7 +28,13 @@
   	<dependency>
   		<groupId>org.jakz.common</groupId>
   		<artifactId>org.jakz.common</artifactId>
-  		<version>2.1.0</version>
+  		<version>2.2.0</version>
   	</dependency>
   </dependencies>
+  <artifactId>Form</artifactId>
+  <description>org.jakz.form</description>
+  <organization>
+  	<name>jakz</name>
+  	<url>jakz.org</url>
+  </organization>
 </project>
