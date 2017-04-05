@@ -307,7 +307,7 @@ public class SSFormProcessor
 		return masterForm;
 	}
 	
-	public static String scriptDynamicSQLCreateVersionedTableColumnPart(String variableName, String typeString, String defaultValueString, boolean nullable, boolean unique, boolean identity) throws FormException
+	public static String scriptDynamicSQLCreateTableColumnPart(String variableName, String typeString, String defaultValueString, boolean nullable, boolean unique, boolean identity) throws FormException
 	{
 		StringBuilder s = new StringBuilder();
 		
@@ -347,7 +347,7 @@ public class SSFormProcessor
 		boolean first=false;
 		if(addIdentityColumn)
 		{
-			s.append(scriptDynamicSQLCreateVersionedTableColumnPart(templateForm.getEvaluatedDBTable()+"_id", "INT", null,false,true,true));
+			s.append(scriptDynamicSQLCreateTableColumnPart(templateForm.getEvaluatedDBTable()+"_id", "INT", null,false,true,true));
 			first=true;
 		}
 		
@@ -358,7 +358,7 @@ public class SSFormProcessor
 			
 			Form varColumn = queryTemplate.content.getValueAt(iColumn);
 			
-			scriptDynamicSQLCreateVersionedTableColumnPart(varColumn.dataSourcePath, SSFormProcessor.getTypeString(varColumn),null,varColumn.nullable,false,false);
+			scriptDynamicSQLCreateTableColumnPart(varColumn.dataSourcePath, SSFormProcessor.getTypeString(varColumn),null,varColumn.nullable,false,false);
 			
 			first=true;
 		}

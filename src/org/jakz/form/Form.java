@@ -91,6 +91,11 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	public String text;
 	
 	/**
+	 * Human readable descriptive instruction for the administrator
+	 */
+	public String instruction;
+	
+	/**
 	 * Definitions of types for each value in the question/variable. Can contain question/variable data.
 	 */
 	public ArrayList<TypedValue> value;
@@ -124,7 +129,10 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	 */
 	public boolean tablekey;
 	
-	
+	/**
+	 * Other parameters not covered by standardized settings or variables.
+	 */
+	public IndexedMap<String,String> parameter;
 	
 	
 	/*
@@ -148,6 +156,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		name="";
 		text="";
+		instruction="";
 		
 		required =false;
 		nullable = true;
@@ -156,6 +165,8 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		
 		settingJSONIncludeDataSourceMapping=false;
+		
+		parameter = new IndexedMap<String, String>();
 	}
 
 	/**
@@ -176,6 +187,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		type=source.type;
 		name=source.name;
 		text=source.text;
+		instruction=source.instruction;
 		value=source.value;
 		parent=source.parent;
 		content=source.content;
@@ -185,6 +197,8 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		tablekey=source.tablekey;
 		
 		settingJSONIncludeDataSourceMapping = source.settingJSONIncludeDataSourceMapping;
+		
+		parameter=source.parameter;
 		
 		return this;	
 	}
@@ -220,6 +234,13 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		for(int i=0; i<source.value.size(); i++)
 		{
 			value.add(source.value.get(i).createNewScopy());
+		}
+		
+		parameter=new IndexedMap<String, String>();
+		
+		for(int i=0; i<source.parameter.size(); i++)
+		{
+			parameter.put(source.parameter.getKeyAt(i), source.parameter.getValueAt(i));
 		}
 		
 		return this;
@@ -404,6 +425,8 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		j.put("writeable",writeable);
 		j.put("tablekey",tablekey);
 		
+		j.put("parameter",parameter.getMap());
+		
 		return j;
 	}
 
@@ -449,6 +472,13 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		writeable=source.optBoolean("writeable");
 		tablekey=source.optBoolean("tablekey");
 		
+		parameter=new IndexedMap<String,String>();
+		JSONObject parametersObject = source.getJSONObject("parameter");
+		String[] paramaterNames = parametersObject.getNames();
+		for(int i=0; i<paramaterNames.length; i++)
+		{
+			parameter.put(paramaterNames[i],parametersObject.getString(paramaterNames[i]));
+		}
 	}
 	
 	public boolean getHasContent()

@@ -30,6 +30,11 @@
   		<artifactId>org.jakz.common</artifactId>
   		<version>2.2.0</version>
   	</dependency>
+  	<dependency>
+  		<groupId>xom</groupId>
+  		<artifactId>xom</artifactId>
+  		<version>1.2.5</version>
+  	</dependency>
   </dependencies>
   <artifactId>org.jakz.form</artifactId>
   <description>org.jakz.form</description>
