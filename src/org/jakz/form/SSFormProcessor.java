@@ -20,6 +20,7 @@ public class SSFormProcessor
 {
 	static final String tableNamePrefix ="_SSFP";
 	
+	
 	//TODO use modified DataEntry? Merge DataEntry and Form
 	//TODO create offset & limit functionality
 	/**
@@ -31,7 +32,7 @@ public class SSFormProcessor
 	 * @throws SQLException 
 	 * @throws FormException 
 	 */
-	public static Form populateFormFromSQLConnection(Form toPopulate, Connection c) throws SQLException, FormException
+	public static Form populateFormFromDB(Form toPopulate, Connection c) throws SQLException, FormException
 	{
 		if(toPopulate.content.size()>1)
 			throw new FormException("Form object is already populated");
@@ -231,7 +232,7 @@ public class SSFormProcessor
 		else throw new FormException("Variable has no value");
 	}
 	
-	public static void enterDBDataFromForm(Form source, Connection c)
+	public static void populateDBFromForm(Connection c, Form source)
 	{
 		//TODO
 	}

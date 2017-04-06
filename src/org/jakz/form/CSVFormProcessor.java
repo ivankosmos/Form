@@ -4,6 +4,10 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -21,9 +25,13 @@ public class CSVFormProcessor
 	public static CSVFormat csvFormatCSVIMPROVED = CSVFormat.DEFAULT.withDelimiter(';').withAllowMissingColumnNames(false);
 	public static CSVFormat csvFormatTSV = CSVFormat.DEFAULT.withDelimiter('\t').withAllowMissingColumnNames(false);
 	
+	public boolean settingSkipEmptyRows = true;
+	public boolean settingSkipBlankRows = true;
+	public boolean settingBlankCharactersNull = true;
 	
-	private File sourceFile;
-	private Form targetForm, templateForm;
+	
+	private InputStream sourceIS;
+	private Form targetForm, templateQuery;
 	private CSVFormat formatToUse;
 	
 	
@@ -32,21 +40,21 @@ public class CSVFormProcessor
 		formatToUse=csvFormatCSVSTD;
 	}
 	
-	public CSVFormProcessor setSource(File nSource)
+	public CSVFormProcessor setSource(InputStream nSource)
 	{
-		sourceFile=nSource;
+		sourceIS=nSource;
 		return this;
 	}
 	
-	public CSVFormProcessor setTarget(Form nTarget)
+	public CSVFormProcessor setTargetForm(Form nTarget)
 	{
 		targetForm=nTarget;
 		return this;
 	}
 	
-	public CSVFormProcessor setTemplate(Form nTemplate)
+	public CSVFormProcessor setTemplateQuery(Form nTemplate)
 	{
-		templateForm=nTemplate;
+		templateQuery=nTemplate;
 		return this;
 	}
 	
@@ -56,12 +64,12 @@ public class CSVFormProcessor
 		return this;
 	}
 	
-	public CSVFormProcessor populateFormDataFromFile(boolean firstRowNames) throws IOException, FormException
+	public CSVFormProcessor populateFormDataFromFile(boolean firstRowNames, Charset charset) throws IOException, FormException
 	{
 		if(targetForm==null)
 			targetForm=new Form("CSVForm");
 		
-		BufferedReader reader = new BufferedReader(new FileReader(sourceFile));
+		BufferedReader reader = new BufferedReader(new InputStreamReader(sourceIS,charset));
 		CSVParser parser = formatToUse.parse(reader);
 		Iterator<CSVRecord> rowIt = parser.iterator();
 		Iterator<String> cellIt;
@@ -69,6 +77,9 @@ public class CSVFormProcessor
 		ArrayList<String> fileColumns = new ArrayList<String>();
 		
 		CSVRecord currentRow=null;
+		
+		boolean rowIsEmpty;
+		boolean rowIsBlank;
 		
 		//names
 		if(firstRowNames && rowIt.hasNext())
@@ -84,58 +95,109 @@ public class CSVFormProcessor
 		}
 		
 		
-		Form templateQuery = null;
-		
-		if(templateForm!=null&&templateForm.getHasContent())
-			templateQuery=templateForm.content.getValueAt(0);
-		
 		for(int iRow=0; rowIt.hasNext(); iRow++)
 		{
+			Form q = new Form(""+iRow,FieldType.QRY);
 			currentRow = rowIt.next();
 			cellIt = currentRow.iterator();
+			rowIsEmpty=true;
+			rowIsBlank=true;
 			
 			for(int iCell=0; cellIt.hasNext(); iCell++)
 			{
 				String fileColumnName = fileColumns.get(iCell);
 				String cellContent = cellIt.next();
 				
-				Form q = targetForm.addQuery(""+iRow);
+				if(cellContent.length()>0)
+					rowIsEmpty=false;
+				
+				if(cellContent.trim().length()>0)
+					rowIsBlank=false;
+				
+				
 				if(templateQuery!=null&&templateQuery.content.containsKey(fileColumnName))
 				{
 					Form templateVar = templateQuery.content.getValue(fileColumnName);
 					Form newVar =templateVar.createNewDcopy();
-					parseString(newVar.value.get(0),cellContent);
+					parseTypedValue(newVar.value.get(0),cellContent);
 					q.add(newVar);
 				}
 				else
 				{
 					Form newVar = new Form(fileColumnName,FieldType.VAR);
 					newVar.addValue(new TypedValue(Types.NVARCHAR));
-					parseString(newVar.value.get(0),cellContent);
+					parseTypedValue(newVar.value.get(0),cellContent);
+					q.add(newVar);
 				}
 			}
+			
+			if(
+					(rowIsEmpty&&(settingSkipEmptyRows||settingSkipBlankRows))
+					|| 
+					(rowIsBlank&&settingSkipBlankRows)
+				)
+				continue;
+				
+			targetForm.add(q);
 		}
 		
 		return this;
 	}
 	
-	public static void parseString(TypedValue target, String stringToParse) throws FormException
+	public TypedValue parseTypedValue(TypedValue target, String stringToParse) throws FormException
 	{
 		if(target.getType()==java.sql.Types.INTEGER)
-			target.setInteger(Integer.parseInt(stringToParse));
+		{
+			if(stringToParse.trim().length()==0)
+				target.setInteger(null);
+			else
+				target.setInteger(Integer.parseInt(stringToParse));
+		}
 		else if(target.getType()==java.sql.Types.DOUBLE)
-			target.setDouble(Double.parseDouble(stringToParse));
+		{
+			if(stringToParse.trim().length()==0)
+				target.setDouble(null);
+			else
+				target.setDouble(Double.parseDouble(stringToParse));
+		}
 		else if(target.getType()==java.sql.Types.BOOLEAN)
-			target.setBoolean(Boolean.parseBoolean(stringToParse));
+		{
+			if(stringToParse.trim().length()==0)
+				target.setBoolean(null);
+			else
+				target.setBoolean(Boolean.parseBoolean(stringToParse));
+		}
 		else if(target.getType()==java.sql.Types.VARCHAR)
-			target.setVarchar(stringToParse);
+		{
+			if(settingBlankCharactersNull && stringToParse.trim().length()==0)
+				target.setVarchar(null);
+			else
+				target.setVarchar(stringToParse);
+		}
 		else if(target.getType()==java.sql.Types.NVARCHAR)
-			target.setNvarchar(stringToParse);
+		{
+			if(settingBlankCharactersNull && stringToParse.trim().length()==0)
+				target.setNvarchar(null);
+			else
+				target.setNvarchar(stringToParse);
+		}
 		else if(target.getType()==java.sql.Types.TIMESTAMP)
-			target.setTimestamp(Long.parseLong(stringToParse));
+		{	
+			if(stringToParse.trim().length()==0)
+				target.setTimestamp(null);
+			else
+				target.setTimestamp(Long.parseLong(stringToParse));
+		}
 		else if(target.getType()==java.sql.Types.BIGINT)
-			target.setBigint(Long.parseLong(stringToParse));
+		{
+			if(stringToParse.trim().length()==0)
+				target.setBigint(null);
+			else
+				target.setBigint(Long.parseLong(stringToParse));
+		}
 		else
 			throw new FormException("SQL type unknown");
+		
+		return target;
 	}
 }
