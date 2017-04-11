@@ -21,6 +21,28 @@ public class SSFormProcessor
 	static final String tableNamePrefix ="_SSFP";
 	
 	
+	public static TypedValue setTypedValueFromSQLResultSet(TypedValue target, ResultSet r, String columnLabel) throws SQLException, OperationException
+	{
+		if(target.getType()==java.sql.Types.INTEGER)
+			target.setInteger(r.getInt(columnLabel));
+		else if(target.getType()==java.sql.Types.DOUBLE)
+			target.setDouble(r.getDouble(columnLabel));
+		else if(target.getType()==java.sql.Types.BOOLEAN)
+			target.setBoolean(r.getBoolean(columnLabel));
+		else if(target.getType()==java.sql.Types.VARCHAR)
+			target.setVarchar(r.getString(columnLabel));
+		else if(target.getType()==java.sql.Types.NVARCHAR)
+			target.setNvarchar(r.getString(columnLabel));
+		else if(target.getType()==java.sql.Types.TIMESTAMP)
+			target.setTimestamp(r.getTimestamp(columnLabel).getTime());
+		else if(target.getType()==java.sql.Types.BIGINT)
+			target.setBigint(r.getLong(columnLabel));
+		else
+			throw new OperationException("SQL type unknown to TypedValue");
+		
+		return target;
+	}
+	
 	//TODO use modified DataEntry? Merge DataEntry and Form
 	//TODO create offset & limit functionality
 	/**
@@ -32,7 +54,7 @@ public class SSFormProcessor
 	 * @throws SQLException 
 	 * @throws FormException 
 	 */
-	public static Form populateFormFromDB(Form toPopulate, Connection c) throws SQLException, FormException
+	public static Form populateFormFromDB(Form toPopulate, Connection c, String userToSpecify) throws SQLException, FormException
 	{
 		if(toPopulate.content.size()>1)
 			throw new FormException("Form object is already populated");
@@ -71,7 +93,7 @@ public class SSFormProcessor
 				Form colVar = newQuery.content.getValueAt(iColumn);
 				try 
 				{
-					colVar.value.get(0).setValueFromSQLResultSet(r, colVar.dataSourcePath);
+					setTypedValueFromSQLResultSet(colVar.value,r, colVar.dataSourcePath);
 				} catch (OperationException e) 
 				{
 					throw new FormException(e);
@@ -199,9 +221,9 @@ public class SSFormProcessor
 	 */
 	public static String getTypeString(Form variable) throws FormException
 	{
-		if(variable.value.size()>0)
+		if(variable.value!=null)
 		{
-			TypedValue value = variable.value.get(0);
+			TypedValue value = variable.value;
 			Integer type = value.getType();
 			Integer sizeLimit = value.getSizeLimit();
 			if(type==java.sql.Types.INTEGER)
@@ -229,10 +251,10 @@ public class SSFormProcessor
 			else
 				throw new FormException("SQL type unknown to TypedValue");
 		}
-		else throw new FormException("Variable has no value");
+		else throw new FormException("Variable value is null");
 	}
 	
-	public static void populateDBFromForm(Connection c, Form source)
+	public static void populateDBFromForm(Connection c, Form source, String userToSpecify)
 	{
 		//TODO
 	}
@@ -290,7 +312,7 @@ public class SSFormProcessor
 					{	
 						try 
 						{
-							tv.setValueFromSQLResultSet(result, columnName);
+							setTypedValueFromSQLResultSet(tv, result, columnName);
 						} catch (OperationException e) 
 						{
 							throw new FormException("Could not parse Form value of table "+tableName+", column "+columnName+" with type "+columnType+" at relative line index "+rowi);
@@ -298,7 +320,7 @@ public class SSFormProcessor
 					}
 				}
 				
-				columnForm.value.add(tv);
+				columnForm.setValue(tv);
 				
 				rowForm.add(columnForm);
 			}

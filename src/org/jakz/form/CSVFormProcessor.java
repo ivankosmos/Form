@@ -27,12 +27,15 @@ public class CSVFormProcessor
 	
 	public boolean settingSkipEmptyRows = true;
 	public boolean settingSkipBlankRows = true;
-	public boolean settingBlankCharactersNull = true;
+	public boolean settingBlankCharactersNull = false;
+	public boolean settingSkipVariableOnError = true;
+	public boolean settingSkipRowOnError = true;
+	public boolean settingSkipUnmappedColumns = true;
 	
 	
-	private InputStream sourceIS;
-	private Form targetForm, templateQuery;
-	private CSVFormat formatToUse;
+	protected InputStream sourceIS;
+	protected Form targetForm, templateQuery;
+	protected CSVFormat formatToUse;
 	
 	
 	public CSVFormProcessor() 
@@ -64,8 +67,10 @@ public class CSVFormProcessor
 		return this;
 	}
 	
-	public CSVFormProcessor populateFormDataFromFile(boolean firstRowNames, Charset charset) throws IOException, FormException
+	public CSVFormProcessor populateFormDataFromFile(boolean firstRowNames, Charset charset, ArrayList<String> messageList) throws IOException, FormException
 	{
+		boolean hasPopulationErrors = false;
+		
 		if(targetForm==null)
 			targetForm=new Form("CSVForm");
 		
@@ -89,8 +94,8 @@ public class CSVFormProcessor
 			
 			while(cellIt.hasNext())
 			{
-				String columnName = cellIt.next().trim();
-				fileColumns.add(columnName);
+				String fileColumnName = cellIt.next().trim();
+				fileColumns.add(fileColumnName);
 			}
 		}
 		
@@ -102,11 +107,15 @@ public class CSVFormProcessor
 			cellIt = currentRow.iterator();
 			rowIsEmpty=true;
 			rowIsBlank=true;
-			
+
 			for(int iCell=0; cellIt.hasNext(); iCell++)
 			{
+				
 				String fileColumnName = fileColumns.get(iCell);
 				String cellContent = cellIt.next();
+				
+				if(settingSkipUnmappedColumns&&!templateQuery.content.getHasKey(fileColumnName))
+					continue;
 				
 				if(cellContent.length()>0)
 					rowIsEmpty=false;
@@ -114,20 +123,34 @@ public class CSVFormProcessor
 				if(cellContent.trim().length()>0)
 					rowIsBlank=false;
 				
-				
-				if(templateQuery!=null&&templateQuery.content.containsKey(fileColumnName))
+				Form newVar = new Form(fileColumnName,FieldType.VAR);
+				try
 				{
-					Form templateVar = templateQuery.content.getValue(fileColumnName);
-					Form newVar =templateVar.createNewDcopy();
-					parseTypedValue(newVar.value.get(0),cellContent);
-					q.add(newVar);
+					
+					if(templateQuery!=null&&templateQuery.content.containsKey(fileColumnName))
+					{
+						Form templateVar = templateQuery.content.getValue(fileColumnName);
+						newVar =templateVar.createNewDcopy();
+						parseFormValue(newVar,cellContent);
+						q.add(newVar);
+					}
+					else if(!(settingSkipUnmappedColumns&&!templateQuery.content.getHasKey(fileColumnName)))
+					{
+						//newVar = new Form(fileColumnName,FieldType.VAR);
+						newVar.setValue(Types.NVARCHAR);
+						parseFormValue(newVar,cellContent);
+						q.add(newVar);
+					}
 				}
-				else
+				catch (Exception e)
 				{
-					Form newVar = new Form(fileColumnName,FieldType.VAR);
-					newVar.addValue(new TypedValue(Types.NVARCHAR));
-					parseTypedValue(newVar.value.get(0),cellContent);
-					q.add(newVar);
+					hasPopulationErrors=true;
+					newVar.errorFlag=true;
+					String s = "Syntax error for variable "+fileColumnName+" ("+ iCell+","+iRow+"). Cell content ["+cellContent+"].";
+					s=s+" Data type="+newVar.getValue().getTypeString()+", Nullable="+newVar.nullable+", Length="+newVar.getValue().getSizeLimit();
+					
+					messageList.add(s);
+					newVar.errorMessage=s;
 				}
 			}
 			
@@ -136,64 +159,71 @@ public class CSVFormProcessor
 					|| 
 					(rowIsBlank&&settingSkipBlankRows)
 				)
+			{
+				messageList.add("Skipping row index "+iRow+" (blank or empty)");
 				continue;
-				
+			}
+			
 			targetForm.add(q);
 		}
+		
+		if(hasPopulationErrors)
+			throw new FormException("There were errors when populationg the form - see the error list");
 		
 		return this;
 	}
 	
-	public TypedValue parseTypedValue(TypedValue target, String stringToParse) throws FormException
+	public Form parseFormValue(Form target, String stringToParse) throws FormException
 	{
-		if(target.getType()==java.sql.Types.INTEGER)
+		
+		if(target.getValueType()==java.sql.Types.INTEGER)
 		{
 			if(stringToParse.trim().length()==0)
-				target.setInteger(null);
+				target.setValueInteger(null);
 			else
-				target.setInteger(Integer.parseInt(stringToParse));
+				target.setValueInteger(Integer.parseInt(stringToParse.trim()));
 		}
-		else if(target.getType()==java.sql.Types.DOUBLE)
+		else if(target.getValueType()==java.sql.Types.DOUBLE)
 		{
 			if(stringToParse.trim().length()==0)
-				target.setDouble(null);
+				target.setValueDouble(null);
 			else
-				target.setDouble(Double.parseDouble(stringToParse));
+				target.setValueDouble(Double.parseDouble(stringToParse.trim()));
 		}
-		else if(target.getType()==java.sql.Types.BOOLEAN)
+		else if(target.getValueType()==java.sql.Types.BOOLEAN)
 		{
 			if(stringToParse.trim().length()==0)
-				target.setBoolean(null);
+				target.setValueBoolean(null);
 			else
-				target.setBoolean(Boolean.parseBoolean(stringToParse));
+				target.setValueBoolean(Boolean.parseBoolean(stringToParse.trim()));
 		}
-		else if(target.getType()==java.sql.Types.VARCHAR)
+		else if(target.getValueType()==java.sql.Types.VARCHAR)
 		{
 			if(settingBlankCharactersNull && stringToParse.trim().length()==0)
-				target.setVarchar(null);
+				target.setValueVarchar(null);
 			else
-				target.setVarchar(stringToParse);
+				target.setValueVarchar(stringToParse);
 		}
-		else if(target.getType()==java.sql.Types.NVARCHAR)
+		else if(target.getValueType()==java.sql.Types.NVARCHAR)
 		{
 			if(settingBlankCharactersNull && stringToParse.trim().length()==0)
-				target.setNvarchar(null);
+				target.setValueNvarchar(null);
 			else
-				target.setNvarchar(stringToParse);
+				target.setValueNvarchar(stringToParse);
 		}
-		else if(target.getType()==java.sql.Types.TIMESTAMP)
+		else if(target.getValueType()==java.sql.Types.TIMESTAMP)
 		{	
 			if(stringToParse.trim().length()==0)
-				target.setTimestamp(null);
+				target.setValueTimestamp(null);
 			else
-				target.setTimestamp(Long.parseLong(stringToParse));
+				target.setValueTimestamp(Long.parseLong(stringToParse.trim()));
 		}
-		else if(target.getType()==java.sql.Types.BIGINT)
+		else if(target.getValueType()==java.sql.Types.BIGINT)
 		{
 			if(stringToParse.trim().length()==0)
-				target.setBigint(null);
+				target.setValueBigint(null);
 			else
-				target.setBigint(Long.parseLong(stringToParse));
+				target.setValueBigint(Long.parseLong(stringToParse.trim()));
 		}
 		else
 			throw new FormException("SQL type unknown");

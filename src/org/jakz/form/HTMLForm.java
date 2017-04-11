@@ -41,11 +41,15 @@ public class HTMLForm extends Form
 		init();
 	}
 	
-	public HTMLForm(Form nform)
+	/**
+	 * Crates a HTMLForm populated with a <strong>shallow</strong> copy of a Form object 
+	 * @param nformTemplate
+	 */
+	public HTMLForm(Form nformTemplate)
 	{
-		super(nform.id,nform.type);
+		super(nformTemplate.id,nformTemplate.type);
 		init();
-		scopy(nform);
+		scopy(nformTemplate);
 	}
 	
 	public HTMLForm setWorkingElement(Element nWorkingElement)
@@ -198,7 +202,7 @@ public class HTMLForm extends Form
 				
 				valcontainer.appendElement("span").html(columnForm.name);
 				
-				TypedValue tv = columnForm.value.get(0); //Only takes the first
+				TypedValue tv = columnForm.value;
 				int type = tv.getType();
 				
 				Element inputElement;
@@ -257,7 +261,7 @@ public class HTMLForm extends Form
 		if(source.type==FieldType.VAR)
 		{
 			toreturn =  new Element(Tag.valueOf("td"),"").attr("name", source.id).attr("id",source.id);
-			TypedValue tv = source.value.get(0); //Only takes the first
+			TypedValue tv = source.value;
 			int type = tv.getType();
 			
 			if(type==java.sql.Types.INTEGER)
@@ -378,7 +382,7 @@ public class HTMLForm extends Form
 		Form valF = new HTMLForm("1", FieldType.VAR);
 		
 		val=new TypedValue(java.sql.Types.VARCHAR);
-		valF.value.add(val);
+		valF.setValue(val);
 		q.add(valF);
 		f.add(q);
 		

@@ -17,6 +17,9 @@ import org.jakz.common.TypedValue;
 //TODO use modified DataEntry? Merge DataEntry and Form
 public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 {
+	
+	protected static String valueNotNullableExceptionString ="Value is not nullable.";
+	
 	public static enum FieldType 
 	{
 		/**
@@ -98,7 +101,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	/**
 	 * Definitions of types for each value in the question/variable. Can contain question/variable data.
 	 */
-	public ArrayList<TypedValue> value;
+	protected TypedValue value;
 	
 	/**
 	 * Parent Form object in content hierarchy.
@@ -134,6 +137,15 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	 */
 	public IndexedMap<String,String> parameter;
 	
+	/**
+	 * Flag to indicate variable error.
+	 */
+	public boolean errorFlag;
+	
+	/**
+	 * String message corresponding to a positive error flag.
+	 */
+	public String errorMessage;
 	
 	/*
 	 * Temporary session settings
@@ -152,7 +164,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		parent=null;
 		content=new IndexedMap<String, Form>();
-		value=new ArrayList<TypedValue>();
+		value=null;
 		
 		name="";
 		text="";
@@ -163,10 +175,14 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		writeable = false;
 		tablekey = false;
 		
+		parameter = new IndexedMap<String, String>();
+		
+		errorFlag = false;
+		errorMessage = null;
 		
 		settingJSONIncludeDataSourceMapping=false;
 		
-		parameter = new IndexedMap<String, String>();
+		
 	}
 
 	/**
@@ -188,17 +204,22 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		name=source.name;
 		text=source.text;
 		instruction=source.instruction;
-		value=source.value;
+		value=null;
+		if(source.value!=null)
+			value=source.value.createNewScopy();
 		parent=source.parent;
-		content=source.content;
+		//content=source.content;
 		required=source.required;
 		nullable=source.nullable;
 		writeable=source.writeable;
 		tablekey=source.tablekey;
 		
-		settingJSONIncludeDataSourceMapping = source.settingJSONIncludeDataSourceMapping;
-		
 		parameter=source.parameter;
+		
+		errorFlag=source.errorFlag;
+		errorMessage=source.errorMessage;
+		
+		settingJSONIncludeDataSourceMapping = source.settingJSONIncludeDataSourceMapping;
 		
 		return this;	
 	}
@@ -227,13 +248,6 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		for(int i=0; i<source.content.size(); i++)
 		{
 			content.put(source.content.getKeyAt(i), source.content.getValueAt(i).createNewDcopy());
-		}
-		
-		value=new ArrayList<TypedValue>();
-		
-		for(int i=0; i<source.value.size(); i++)
-		{
-			value.add(source.value.get(i).createNewScopy());
 		}
 		
 		parameter=new IndexedMap<String, String>();
@@ -322,45 +336,108 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		return this;
 	}
 	
-	public Form setValue(ArrayList<TypedValue> nValue)
+	public Integer getValueType() { return value.getType();}
+	
+	public TypedValue getValue() {return value;}
+	public Integer getValueInteger() {return value.getValueInteger();}
+	public Boolean getValueBoolean() {return value.getValueBoolean();}
+	public String getValueVarchar() {return value.getValueVarchar();}
+	public String getValueNVarchar() {return value.getValueNVarchar();}
+	public Long getValueTimestamp() {return value.getValueTimestamp();}
+	public Long getValueBigint() {return value.getValueBigint();}
+	public Double getValueDouble() {return value.getValueDouble();}
+	
+	
+	
+	public Form setValueInteger(Integer nValue) throws NumberFormatException
+	{
+		if(nValue==null&&!nullable)
+			throw new NumberFormatException(valueNotNullableExceptionString);
+		
+		value.setInteger(nValue);
+		return this;
+	}
+	
+	public Form setValueBoolean(Boolean nValue) throws NumberFormatException
+	{
+		if(nValue==null&&!nullable)
+			throw new NumberFormatException(valueNotNullableExceptionString);
+		
+		value.setBoolean(nValue);
+		return this;
+	}
+	
+	public Form setValueVarchar(String nValue) throws NumberFormatException
+	{
+		if(nValue==null&&!nullable)
+			throw new NumberFormatException(valueNotNullableExceptionString);
+		
+		value.setVarchar(nValue);
+		return this;
+	}
+	
+	public Form setValueNvarchar(String nValue) throws NumberFormatException
+	{
+		if(nValue==null&&!nullable)
+			throw new NumberFormatException(valueNotNullableExceptionString);
+		
+		value.setNvarchar(nValue);
+		return this;
+	}
+	
+	public Form setValueTimestamp(Long nValue) throws NumberFormatException
+	{
+		if(nValue==null&&!nullable)
+			throw new NumberFormatException(valueNotNullableExceptionString);
+		
+		value.setTimestamp(nValue);
+		return this;
+	}
+	
+	public Form setValueBigint(Long nValue) throws NumberFormatException
+	{
+		if(nValue==null&&!nullable)
+			throw new NumberFormatException(valueNotNullableExceptionString);
+		
+		value.setBigint(nValue);
+		return this;
+	}
+	
+	public Form setValueDouble(Double nValue) throws NumberFormatException
+	{
+		if(nValue==null&&!nullable)
+			throw new NumberFormatException(valueNotNullableExceptionString);
+		
+		value.setDouble(nValue);
+		return this;
+	}
+	
+	public Form setValue(TypedValue nValue)
 	{
 		value=nValue;
 		return this;
 	}
 	
-	public Form setValue(TypedValue tv)
+	public Form setValue(int nType)
 	{
-		value=new ArrayList<TypedValue>();
-		value.add(tv);
+		value=new TypedValue(nType);
 		return this;
 	}
 	
 	public Form setValueType(int nType)
 	{
-		value=new ArrayList<TypedValue>();
-		TypedValue tv = new TypedValue(nType);
-		value.add(tv);
+		if(value==null)
+			value=new TypedValue();
+		value.setType(nType);
 		return this;
 	}
 	
-	public Form setValueType(int nType, int nSize)
+	public Form setValueType(int nType, int nSizeLimit)
 	{
-		value=new ArrayList<TypedValue>();
-		TypedValue tv = new TypedValue(nType,nSize);
-		value.add(tv);
-		return this;
-	}
-	
-	public Form addValue(TypedValue tv)
-	{
-		value.add(tv);
-		return this;
-	}
-	
-	public Form addValueType(int type)
-	{
-		TypedValue tv = new TypedValue(type);
-		value.add(tv);
+		if(value==null)
+			value=new TypedValue();
+		value.setType(nType);
+		value.setSizeLimit(nSizeLimit);
 		return this;
 	}
 	
@@ -427,6 +504,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		j.put("parameter",parameter.getMap());
 		
+		j.put("errorFlag",errorFlag);
+		j.put("errorMessage",errorMessage);
+		
 		return j;
 	}
 
@@ -442,20 +522,15 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 			dataSourcePath=source.optString("dataSourcePath");
 			varMapForeignLabel=source.optString("varMapForeignLabel");
 			varMapForeignTable=source.optString("varMapForeignTable");
-			varMapForeignKey=source.getString("varMapForeignKey");
+			varMapForeignKey=source.optString("varMapForeignKey");
 		}
 		
 		name=source.getString("name");
 		text=source.optString("text");
 		type=FieldType.valueOf(source.getString("type").toUpperCase());
-		org.jakz.common.JSONArray a = source.getJSONArray("value");
-		for(int i=0; i<a.length(); i++)
-		{
-			org.jakz.common.JSONObject toputJSON= a.getJSONObject(i);
-			TypedValue toput = new TypedValue();
-			toput.fromJSONObject(toputJSON);
-			value.add(toput);
-		}
+		
+		value=new TypedValue();
+		value.fromJSONObject(source.getJSONObject("value"));
 		
 		content=new IndexedMap<String,Form>();
 		org.jakz.common.JSONArray contentArray = source.getJSONArray("content");
@@ -479,6 +554,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		{
 			parameter.put(paramaterNames[i],parametersObject.getString(paramaterNames[i]));
 		}
+		
+		errorFlag=source.optBoolean("errorFlag");
+		errorMessage=source.optString("errorMessage");
 	}
 	
 	public boolean getHasContent()
