@@ -2,11 +2,13 @@ package org.jakz.form;
 
 import java.sql.Connection;
 import java.sql.JDBCType;
+import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 
@@ -73,7 +75,7 @@ public class SSFormProcessor
 			throw new FormException("Form object is not populated with template row");
 		
 		Statement s = c.createStatement();
-		String sqlQuery = SSFormProcessor.constructFormQuery(toPopulate);
+		String sqlQuery = SSFormProcessor.constructFormSelectQuery(toPopulate);
 		ResultSet r = s.executeQuery(sqlQuery);
 		boolean firstRow =true;
 		for(long iRow = 0;r.next(); iRow++)
@@ -110,14 +112,44 @@ public class SSFormProcessor
 		return toPopulate;
 	}
 	
+	public static void populateDBFromForm(Connection c, Form source, String userToSpecify) throws FormException, SQLException
+	{
+		String mainTablePath = source.getEvaluatedDBPath();
+		if(mainTablePath==null)
+			throw new FormException("No main table path");
+		
+		
+		String sqlQuery = SSFormProcessor.constructFormInsertUpdateStatement(source);
+		PreparedStatement s = c.prepareStatement(sqlQuery);
+		
+		for(int iRow=0; iRow<source.content.size(); iRow++)
+		{
+			Form q = source.content.getValueAt(iRow);
+			
+			for(int iColumn = 0; iColumn<q.content.size(); iColumn++)
+			{
+				Form var = q.content.getValueAt(iColumn);
+				if(var.varMapForeignKey==null)
+				{
+					//main table
+					//TODO
+				}
+				else
+				{
+					//foreign table
+					//TODO
+				}
+			}
+		}
+	}
+	
 	/**
 	 * Fetches everything in one query. Uses first query as template.
 	 * @param toPopulate
 	 * @return
 	 * @throws FormException 
-	 * @throws OperationException
 	 */
-	private static String constructFormQuery(Form toPopulate) throws FormException
+	private static String constructFormSelectQuery(Form toPopulate) throws FormException
 	{	
 		String mainTablePath = toPopulate.getEvaluatedDBPath();
 		if(mainTablePath==null)
@@ -213,6 +245,121 @@ public class SSFormProcessor
 		
 	}
 	
+	public static String constructFormInsertUpdateStatement(Form source) throws FormException
+	{
+		String mainTablePath = source.getEvaluatedDBPath();
+		if(mainTablePath==null)
+			throw new FormException("No main table path");
+		
+		
+		//insert
+		StringBuilder insertColumnList = new StringBuilder();
+		StringBuilder insertValueSelectQuery_columns = new StringBuilder();
+		StringBuilder insertValueSelectQuery_fromTables = new StringBuilder();
+		StringBuilder insertValueSelectQuery_whereCondition = new StringBuilder();
+		
+		//update
+		//ArrayList<StringBuilder> updateColumnValueList = new ArrayList<StringBuilder>();
+		//ArrayList<StringBuilder> updateWhereCondition = new ArrayList<StringBuilder>();
+		boolean hasKey = false;
+		
+		
+		Form query =null;
+		if(source.type==FieldType.FRM)
+		{
+			if(source.content.size()>0)
+				query = source.content.getValueAt(0);
+			else
+				throw new FormException("Form does not have any queries to use as template");
+		}
+		else if(source.type==FieldType.QRY)
+			query = source;
+		else
+			throw new FormException("Must pass a form or query type Form object.");
+		
+		
+		//table and var inventory
+		for(int iVar=0; iVar<query.content.size(); iVar++)
+		{
+			Form var = query.content.getValueAt(iVar);
+			if(var.tablekey)
+				hasKey=true;
+			
+			String insertColumnListEntry,insertValueSelectQuery_columnsEntry,insertValueSelectQuery_fromTablesEntry,insertValueSelectQuery_whereConditionEntry;
+			
+			if(var.dataSourcePath!=null)
+			{
+				//insertColumnList
+				insertColumnListEntry = Form.get1stLevelDBName(var.dataSourcePath);
+				if(insertColumnList.length()>0)
+					insertColumnList.append(",");
+				
+				insertColumnList.append(insertColumnListEntry);
+			
+				/*
+				if(var.varMapForeignKey!=null)
+				{
+					//insertValueSelectQuery_columns
+					insertValueSelectQuery_columnsEntry = tableNamePrefix+iVar+"."+var.varMapForeignKey;
+					if(insertValueSelectQuery_columns.length()>0)
+						insertValueSelectQuery_columns.append(",");
+					
+					insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
+					
+					//insertValueSelectQuery_fromTables
+					insertValueSelectQuery_fromTablesEntry = var.varMapForeignTable;
+					String foreignTableName =  Form.get1stLevelDBName(var.varMapForeignTable);
+					String foreignSchemaName = Form.get2ndLevelDBName(var.varMapForeignTable);
+					
+					insertValueSelectQuery_fromTablesEntry = Form.constructDBPath(foreignSchemaName, foreignTableName, null)+" "+tableNamePrefix+""+iVar;
+					if(insertValueSelectQuery_fromTables.length()>0)
+						insertValueSelectQuery_fromTables.append(",");
+					else
+					{
+						//append main table
+						insertValueSelectQuery_fromTables.append(mainTablePath+" "+tableNamePrefix+"M,"); //includes comma
+					}
+					
+					insertValueSelectQuery_fromTables.append(insertValueSelectQuery_fromTablesEntry);
+					
+					//insertValueSelectQuery_whereCondition
+					insertValueSelectQuery_whereConditionEntry = tableNamePrefix+"M."+var.dataSourcePath+"="+tableNamePrefix+iVar+"."+var.varMapForeignKey;
+					if(insertValueSelectQuery_whereCondition.length()>0)
+						insertValueSelectQuery_whereCondition.append(",");
+					
+					insertValueSelectQuery_whereCondition.append(insertValueSelectQuery_whereConditionEntry);
+					
+				}
+				*/
+				//else
+				//{
+					//insertValueSelectQuery_columns
+					insertValueSelectQuery_columnsEntry = "?";
+					if(insertValueSelectQuery_columns.length()>0)
+						insertValueSelectQuery_columns.append(",");
+					
+					insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
+				//}
+			}
+			else throw new FormException("Form variable "+iVar+" has no dataSourcePath.");
+		}
+		
+
+		String q ="INSERT INTO("+mainTablePath+")";
+		q+="("+insertColumnList+")";
+		q+=" SELECT "+insertValueSelectQuery_columns;
+		
+		/*
+		if(insertValueSelectQuery_fromTables.length()>0)
+			q+=" FROM "+insertValueSelectQuery_fromTables;
+		
+		if(insertValueSelectQuery_whereCondition.length()>0)
+			q+=" WHERE ("+insertValueSelectQuery_whereCondition+")";
+		 */
+		
+		return q;
+	}
+	
 	/**
 	 * Get the SQL Server type of the variable
 	 * @param variable
@@ -252,11 +399,6 @@ public class SSFormProcessor
 				throw new FormException("SQL type unknown to TypedValue");
 		}
 		else throw new FormException("Variable value is null");
-	}
-	
-	public static void populateDBFromForm(Connection c, Form source, String userToSpecify)
-	{
-		//TODO
 	}
 	
 	//TODO use modified DataEntry? Merge DataEntry and Form
