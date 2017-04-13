@@ -17,7 +17,6 @@ import org.jakz.common.TypedValue;
 //TODO use modified DataEntry? Merge DataEntry and Form
 public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 {
-	
 	protected static String valueNotNullableExceptionString ="Value is not nullable.";
 	
 	public static enum FieldType 
@@ -33,7 +32,11 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		/**
 		 * A question/variable corresponding to a column
 		 */
-		VAR
+		VAR,
+		/**
+		 * A single or multi question/variable alternative
+		 */
+		ALT
 	};
 	
 	/**
@@ -142,6 +145,19 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	 */
 	public boolean errorFlag;
 	
+	
+	/**
+	 * Indicates if a variable is loaded with "other-data" or if "other-data" can be entered instead of an alternative.
+	 */
+	public boolean hasOtherField;
+	
+	/**
+	 * Indicates if an alternative is exclusive to the other alternatives.
+	 */
+	public boolean alternativeExclusive;
+	
+	
+	
 	/**
 	 * String message corresponding to a positive error flag.
 	 */
@@ -179,6 +195,10 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		errorFlag = false;
 		errorMessage = null;
+		
+		hasOtherField=false;
+		alternativeExclusive=false;
+		
 		
 		settingJSONIncludeDataSourceMapping=false;
 		
@@ -218,6 +238,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		errorFlag=source.errorFlag;
 		errorMessage=source.errorMessage;
+		
+		hasOtherField=source.hasOtherField;
+		alternativeExclusive=source.alternativeExclusive;
 		
 		settingJSONIncludeDataSourceMapping = source.settingJSONIncludeDataSourceMapping;
 		
@@ -323,6 +346,31 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		add(nf);
 		return nf;
 	}
+	
+	public Form addAlternative(String nId)
+	{
+		setValueType(java.sql.Types.VARCHAR);
+		Form nf = new Form(nId,FieldType.ALT).setValueType(java.sql.Types.NVARCHAR);
+		add(nf);
+		return nf;
+	}
+	
+	/*
+	public ArrayList<Form> getAlternatives()
+	{
+		ArrayList<Form> toReturn = new ArrayList<Form>();
+		for(int i=0; i<content.size(); i++)
+		{
+			Form c = content.getValueAt(i);
+			if(c.type==FieldType.ALT)
+			{
+				toReturn.add(c);
+			}
+		}
+		
+		return toReturn;
+	}
+	*/
 	
 	public Form setId(String nId)
 	{
@@ -507,6 +555,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		j.put("errorFlag",errorFlag);
 		j.put("errorMessage",errorMessage);
 		
+		j.put("hasOtherField", hasOtherField);
+		j.put("alternativeExclusive", alternativeExclusive);
+		
 		return j;
 	}
 
@@ -557,6 +608,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		errorFlag=source.optBoolean("errorFlag");
 		errorMessage=source.optString("errorMessage");
+		
+		hasOtherField=source.optBoolean("hasOtherField");
+		alternativeExclusive=source.optBoolean("valternativeExclusive");
 	}
 	
 	public boolean getHasContent()

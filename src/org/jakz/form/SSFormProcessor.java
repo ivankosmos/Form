@@ -472,6 +472,45 @@ public class SSFormProcessor
 		return masterForm;
 	}
 	
+	
+	
+	public static String scriptDynamicSQLCreateTable(Form templateForm, boolean addIdentityColumn) throws FormException
+	{
+		StringBuilder s = new StringBuilder();
+		String mainTablePath = templateForm.getEvaluatedDBPath();
+		Form queryTemplate = null;
+		if(templateForm.getHasContent())
+		{
+			queryTemplate = templateForm.content.getValueAt(0);
+		}
+		else 
+			throw new FormException("The form template does not have a template row.");
+		
+		s.append("CREATE TABLE "+mainTablePath);
+		s.append("(");
+		
+		
+		if(addIdentityColumn)
+		{
+			s.append(scriptDynamicSQLCreateTableColumnPart(templateForm.getEvaluatedDBTable()+"_id", "INT", null,false,true,true));
+		}
+		
+		for(int iColumn=0; iColumn<templateForm.content.size(); iColumn++)
+		{
+			if(s.length()>0)
+				s.append(",");
+			
+			Form varColumn = queryTemplate.content.getValueAt(iColumn);
+			
+			scriptDynamicSQLCreateTableColumnPart(varColumn.dataSourcePath, SSFormProcessor.getTypeString(varColumn),null,varColumn.nullable,false,false);
+			
+
+		}
+			
+		s.append(");");
+		return s.toString();
+	}
+	
 	public static String scriptDynamicSQLCreateTableColumnPart(String variableName, String typeString, String defaultValueString, boolean nullable, boolean unique, boolean identity) throws FormException
 	{
 		StringBuilder s = new StringBuilder();
@@ -490,45 +529,6 @@ public class SSFormProcessor
 		if(defaultValueString!=null)
 			s.append(" DEFAULT "+defaultValueString);
 		
-		return s.toString();
-	}
-	
-	public static String scriptDynamicSQLCreateTable(Form templateForm, boolean addIdentityColumn) throws FormException
-	{
-		StringBuilder s = new StringBuilder();
-		String mainTablePath = templateForm.getEvaluatedDBPath();
-		Form queryTemplate = null;
-		if(templateForm.getHasContent())
-		{
-			queryTemplate = templateForm.content.getValueAt(0);
-		}
-		else 
-			throw new FormException("The form template does not have a template row.");
-		
-		s.append("CREATE TABLE "+mainTablePath);
-		s.append("(");
-		
-		
-		boolean first=false;
-		if(addIdentityColumn)
-		{
-			s.append(scriptDynamicSQLCreateTableColumnPart(templateForm.getEvaluatedDBTable()+"_id", "INT", null,false,true,true));
-			first=true;
-		}
-		
-		for(int iColumn=0; iColumn<templateForm.content.size(); iColumn++)
-		{
-			if(first)
-				s.append(",");
-			
-			Form varColumn = queryTemplate.content.getValueAt(iColumn);
-			
-			scriptDynamicSQLCreateTableColumnPart(varColumn.dataSourcePath, SSFormProcessor.getTypeString(varColumn),null,varColumn.nullable,false,false);
-			
-			first=true;
-		}
-			
-		s.append(");");
 		return s.toString();
 	}
 

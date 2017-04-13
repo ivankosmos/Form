@@ -4,6 +4,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 
+import org.jakz.common.TypedValue;
 import org.jakz.form.Form.FieldType;
 
 import nu.xom.Builder;
@@ -36,6 +37,8 @@ public class ConfirmitXMLFormProcessor
 		targetForm=nTarget;
 		return this;
 	}
+	
+	public Form getTargetForm() {return targetForm;}
 	
 	public ConfirmitXMLFormProcessor setTemplate(Form nTemplate)
 	{
@@ -76,19 +79,13 @@ public class ConfirmitXMLFormProcessor
 			
 			for(int i=0; i<routingNodes.getChildCount(); i++)
 			{
-				Form newVarForm = new Form("ConfirmitXMLFormProcessor_templateVariable", FieldType.VAR);
-				populateFormDataFromQuestionElement(newVarForm,routingNodes.getChild(i));
+				populateFormDataFromQuestionElement(templateQueryRow,routingNodes.getChild(i));
 				
 			}
 			
 			for(int i=0; i<blocksNodes.getChildCount(); i++)
 			{
-				Node block = blocksNodes.getChild(i);
-				for(int j=0; j<block.getChildCount(); j++)
-				{
-					Form newVarForm = new Form("ConfirmitXMLFormProcessor_templateVariable", FieldType.VAR);
-					populateFormDataFromQuestionElement(newVarForm,block.getChild(j));
-				}
+				populateFormDataFromQuestionElement(templateQueryRow,blocksNodes.getChild(i));
 			}
 		}
 		catch (Exception e)
@@ -99,14 +96,15 @@ public class ConfirmitXMLFormProcessor
 	}
 	
 	//TODO
-	protected void populateFormDataFromQuestionElement(Form targetVariable, Node nQuestionElement)
+	protected void populateFormDataFromQuestionElement(Form templateQueryRow, Node nQuestionElement) throws FormException
 	{
-		//basics
-		targetVariable.type=FieldType.VAR;
-		
-		
 		Element qe = (Element) nQuestionElement;
 		String localName = qe.getLocalName();
+		
+		
+		
+		Form targetVariable = new Form("ConfirmitXMLFormProcessor_templateVariable", FieldType.VAR);
+		
 		String questionId = null;
 		
 		Element nameElement = qe.getFirstChildElement("Name");
@@ -119,6 +117,7 @@ public class ConfirmitXMLFormProcessor
 		String questionCategory = qe.getAttributeValue("QuestionCategory");
 		String sDefaultValue = qe.getAttributeValue("DefaultValue");
 		String sPrecision = qe.getAttributeValue("Precision");
+		String sScale = qe.getAttributeValue("Scale");
 		String sRows = qe.getAttributeValue("Rows");
 		String sNumeric = qe.getAttributeValue("Numeric");
 		String lowerLimitType = qe.getAttributeValue("LowerLimitType");
@@ -150,30 +149,115 @@ public class ConfirmitXMLFormProcessor
 			}
 		}
 		
-		if(localName.equals("Open"))
-		{
-			
-		}
-		else if(localName.equals("Single"))
-		{
-			
-		}
-		else if(localName.equals("Multi"))
-		{
-			
-		}
-		else if(localName.equals("Page"))
-		{
-			
-		}
-		else
-		{
-			//OTHER ELEMENTS
-		}
 		
-		//String questionId = 
-		
-		//Form varForm = new Form(qe.getAttributeValue(name), FieldType.VAR);
+		try
+		{
+			//populate targetVariable
+			targetVariable.id=questionId;
+			targetVariable.parameter.put("EntityId",entityId);
+			targetVariable.name=formTextTitle;
+			targetVariable.text=formTextText;
+			targetVariable.instruction=formTextInstruction;
+			
+			if(localName.equals("Page")||localName.equals("StartBlock")||localName.equals("CallableBlock")||localName.equals("EndBlock"))
+			{
+				Element nodes = ((Element)nQuestionElement).getFirstChildElement("Nodes");
+				for(int i=0;nodes!=null&&i<nodes.getChildCount(); i++)
+				{
+					populateFormDataFromQuestionElement(templateQueryRow,nodes.getChild(i));
+				}
+				return;
+			}
+			else if(localName.equals("Condition"))
+			{
+				Element nodes = ((Element)nQuestionElement).getFirstChildElement("TrueNodes");
+				for(int i=0; nodes!=null&&i<nodes.getChildCount(); i++)
+				{
+					populateFormDataFromQuestionElement(templateQueryRow,nodes.getChild(i));
+				}
+				
+				nodes = ((Element)nQuestionElement).getFirstChildElement("FalseNodes");
+				for(int i=0; nodes!=null&&i<nodes.getChildCount(); i++)
+				{
+					populateFormDataFromQuestionElement(templateQueryRow,nodes.getChild(i));
+				}
+				return;
+			}
+			else if(localName.equals("Open")) //text or numeric
+			{
+				if(sNumeric==null)
+				{
+					//string
+					targetVariable.setValue(java.sql.Types.NVARCHAR);
+				}
+				else
+				{
+					//numeric
+					if(sScale==null)
+						targetVariable.setValue(java.sql.Types.BIGINT);
+					else
+						targetVariable.setValue(java.sql.Types.DOUBLE);
+				}
+			}
+			else if(localName.equals("Single")||localName.equals("Multi"))
+			{
+				targetVariable.setValue(java.sql.Types.INTEGER);
+				Element answersElement;
+				if(localName.equals("Single"))
+				{
+					answersElement = qe.getFirstChildElement("SingleAnswers");
+				}
+				else
+				{
+					answersElement = qe.getFirstChildElement("MultiAnswers");
+				}
+				
+				if(answersElement!=null)
+				{
+					Elements answers = answersElement.getChildElements("Answer");
+					for(int iAnswer=0; iAnswer<answers.size(); iAnswer++)
+					{
+						Element answer = answers.get(iAnswer);
+						String sAnswerPrecode = answer.getAttributeValue("Precode");
+						String sAnswerExclusive=answer.getAttributeValue("Exclusive");
+						String sAnswerOther=answer.getAttributeValue("Other");
+						Element answerTextsElement = answer.getFirstChildElement("Texts");
+						Elements answerTexts = answerTextsElement.getChildElements("Text");
+						String answerTextString=null;
+						
+						
+						for(int iText=0; iText<answerTexts.size(); iText++)
+						{
+							Element answerText = answerTexts.get(iText);
+							String language = answerText.getAttributeValue("Language");
+							if(
+									(language!=null&&languageCode!=null&&languageCode==Integer.parseInt(language))
+							||
+									(languageCode==null&&fallbackToFirstLanguageFound!=null)
+							)
+							{
+								answerTextString=answerText.getValue();
+								break;
+							}
+						}
+						
+						Form alternativeForm = targetVariable.addAlternative(sAnswerPrecode).setValueNvarchar(answerTextString);
+					}
+				}
+				
+			}
+			else
+			{
+				//OTHER ELEMENTS
+				return; //do not add element
+			}
+			
+			templateQueryRow.add(targetVariable);
+		}
+		catch (Exception e)
+		{
+			throw new FormException("Error parsing "+localName+" "+questionId, e);
+		}
 	}
 	
 }
