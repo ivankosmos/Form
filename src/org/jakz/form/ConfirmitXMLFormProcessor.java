@@ -3,6 +3,7 @@ package org.jakz.form;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 
 import org.jakz.common.TypedValue;
 import org.jakz.form.Form.FieldType;
@@ -15,7 +16,7 @@ import nu.xom.Node;
 
 public class ConfirmitXMLFormProcessor 
 {
-	private File sourceFile;
+	private InputStream sourceIS;
 	private Form targetForm, templateForm;
 
 	private Integer languageCode;
@@ -26,9 +27,9 @@ public class ConfirmitXMLFormProcessor
 		fallbackToFirstLanguageFound = true;
 	}
 	
-	public ConfirmitXMLFormProcessor setSource(File nSource)
+	public ConfirmitXMLFormProcessor setSource(InputStream nSource)
 	{
-		sourceFile=nSource;
+		sourceIS=nSource;
 		return this;
 	}
 	
@@ -63,7 +64,7 @@ public class ConfirmitXMLFormProcessor
 		try
 		{
 			Builder xmlParser = new Builder();
-			Document doc = xmlParser.build(sourceFile);
+			Document doc = xmlParser.build(sourceIS);
 			Element root = doc.getRootElement(); //Project
 			Element questionnarieElement = root.getFirstChildElement("Questionnaire");
 			Element routingNodes = questionnarieElement.getFirstChildElement("Routing").getFirstChildElement("Nodes");
@@ -153,7 +154,7 @@ public class ConfirmitXMLFormProcessor
 		try
 		{
 			//populate targetVariable
-			targetVariable.id=questionId;
+			targetVariable.setId(questionId);
 			targetVariable.parameter.put("EntityId",entityId);
 			targetVariable.name=formTextTitle;
 			targetVariable.text=formTextText;
@@ -241,7 +242,11 @@ public class ConfirmitXMLFormProcessor
 							}
 						}
 						
-						Form alternativeForm = targetVariable.addAlternative(sAnswerPrecode).setValueNvarchar(answerTextString);
+						Form alternativeForm = targetVariable.addAlternative(sAnswerPrecode).setValue(java.sql.Types.NVARCHAR).setText(answerTextString);
+						alternativeForm.getValue().setSizeLimit(sAnswerPrecode.length());
+						alternativeForm.alternativeHasOtherField=sAnswerOther!=null;
+						alternativeForm.parameter.put("Exclusive",sAnswerExclusive);
+						alternativeForm.nullable=true;
 					}
 				}
 				

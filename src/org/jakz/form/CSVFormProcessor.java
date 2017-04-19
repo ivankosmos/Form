@@ -9,6 +9,8 @@ import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.nio.charset.StandardCharsets;
 import java.sql.Types;
+import java.text.ParseException;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Iterator;
 
@@ -114,7 +116,27 @@ public class CSVFormProcessor
 				String fileColumnName = fileColumns.get(iCell);
 				String cellContent = cellIt.next();
 				
-				if(settingSkipUnmappedColumns&&!templateQuery.content.getHasKey(fileColumnName))
+				//alternative columns pre work
+				String altColumnMaster = null;
+				String alternativeString = null;
+				if(fileColumnName.indexOf("_other")>=0)
+				{
+					String alt = fileColumnName.substring(0,fileColumnName.lastIndexOf("_other"));
+					altColumnMaster = alt.substring(0,alt.lastIndexOf('_'));
+					alternativeString = fileColumnName.substring(alt.lastIndexOf('_')+1,fileColumnName.lastIndexOf("_other")).trim();
+				}
+				else if(fileColumnName.indexOf('_')>=0)
+				{
+					altColumnMaster = fileColumnName.substring(0,fileColumnName.lastIndexOf('_'));
+					alternativeString = fileColumnName.substring(fileColumnName.lastIndexOf('_')+1).trim();
+				}
+				
+				boolean isAlternative = altColumnMaster!=null &&templateQuery!=null && templateQuery.content.containsKey(altColumnMaster);
+				
+				if(
+						settingSkipUnmappedColumns&&templateQuery!=null&&!templateQuery.content.containsKey(fileColumnName)
+							&& !isAlternative //alternative variable
+					)
 					continue;
 				
 				if(cellContent.length()>0)
@@ -131,10 +153,35 @@ public class CSVFormProcessor
 					{
 						Form templateVar = templateQuery.content.getValue(fileColumnName);
 						newVar =templateVar.createNewDcopy();
+						
 						parseFormValue(newVar,cellContent);
+							
 						q.add(newVar);
 					}
-					else if(!(settingSkipUnmappedColumns&&!templateQuery.content.getHasKey(fileColumnName)))
+					else if(isAlternative)
+					{
+						Form masterVar = null;
+						
+						//create master if not present
+						if(!q.content.containsKey(altColumnMaster))
+						{
+							masterVar = templateQuery.content.getValue(altColumnMaster).createNewDcopy();
+							q.add(masterVar);
+						}
+						else
+						{
+							masterVar = q.content.getValue(altColumnMaster);
+						}
+						
+						if(masterVar.getHasContent()&&masterVar.content.containsKey(alternativeString))
+						{
+							newVar = masterVar.content.getValue(alternativeString);
+							parseFormValue(newVar,cellContent);
+						}
+						else throw new FormException("Unknown alternative detected.");
+						
+					}
+					else if(!settingSkipUnmappedColumns)
 					{
 						//newVar = new Form(fileColumnName,FieldType.VAR);
 						newVar.setValue(Types.NVARCHAR);
@@ -147,7 +194,8 @@ public class CSVFormProcessor
 					hasPopulationErrors=true;
 					newVar.errorFlag=true;
 					String s = "Syntax error for variable "+fileColumnName+" ("+ iCell+","+iRow+"). Cell content ["+cellContent+"].";
-					s=s+" Data type="+newVar.getValue().getTypeString()+", Nullable="+newVar.nullable+", Length="+newVar.getValue().getSizeLimit();
+					if(newVar.getValue()!=null&&newVar.getValue().getType()!=null)
+						s=s+" Data type="+newVar.getValue().getTypeString()+", Nullable="+newVar.nullable+", Length="+newVar.getValue().getSizeLimit();
 					
 					messageList.add(s);
 					newVar.errorMessage=s;
@@ -173,61 +221,78 @@ public class CSVFormProcessor
 		return this;
 	}
 	
-	public Form parseFormValue(Form target, String stringToParse) throws FormException
+	public Form parseFormValue(Form targetAndTemplate, String stringToParse) throws FormException
 	{
 		
-		if(target.getValueType()==java.sql.Types.INTEGER)
+		if(targetAndTemplate.getValueType()==java.sql.Types.INTEGER)
 		{
 			if(stringToParse.trim().length()==0)
-				target.setValueInteger(null);
+				targetAndTemplate.setValueInteger(null);
 			else
-				target.setValueInteger(Integer.parseInt(stringToParse.trim()));
+				targetAndTemplate.setValueInteger(Integer.parseInt(stringToParse.trim()));
 		}
-		else if(target.getValueType()==java.sql.Types.DOUBLE)
+		else if(targetAndTemplate.getValueType()==java.sql.Types.DOUBLE)
 		{
 			if(stringToParse.trim().length()==0)
-				target.setValueDouble(null);
+				targetAndTemplate.setValueDouble(null);
 			else
-				target.setValueDouble(Double.parseDouble(stringToParse.trim()));
+				targetAndTemplate.setValueDouble(Double.parseDouble(stringToParse.trim().replace(',', '.'))); //works with either commas or dots.
 		}
-		else if(target.getValueType()==java.sql.Types.BOOLEAN)
+		else if(targetAndTemplate.getValueType()==java.sql.Types.BOOLEAN)
 		{
 			if(stringToParse.trim().length()==0)
-				target.setValueBoolean(null);
+				targetAndTemplate.setValueBoolean(null);
 			else
-				target.setValueBoolean(Boolean.parseBoolean(stringToParse.trim()));
+				targetAndTemplate.setValueBoolean(Boolean.parseBoolean(stringToParse.trim()));
 		}
-		else if(target.getValueType()==java.sql.Types.VARCHAR)
+		else if(targetAndTemplate.getValueType()==java.sql.Types.VARCHAR)
 		{
 			if(settingBlankCharactersNull && stringToParse.trim().length()==0)
-				target.setValueVarchar(null);
+				targetAndTemplate.setValueVarchar(null);
 			else
-				target.setValueVarchar(stringToParse);
+				targetAndTemplate.setValueVarchar(stringToParse);
 		}
-		else if(target.getValueType()==java.sql.Types.NVARCHAR)
+		else if(targetAndTemplate.getValueType()==java.sql.Types.NVARCHAR)
 		{
 			if(settingBlankCharactersNull && stringToParse.trim().length()==0)
-				target.setValueNvarchar(null);
+				targetAndTemplate.setValueNvarchar(null);
 			else
-				target.setValueNvarchar(stringToParse);
+				targetAndTemplate.setValueNvarchar(stringToParse);
 		}
-		else if(target.getValueType()==java.sql.Types.TIMESTAMP)
+		else if(targetAndTemplate.getValueType()==java.sql.Types.TIMESTAMP)
 		{	
 			if(stringToParse.trim().length()==0)
-				target.setValueTimestamp(null);
+				targetAndTemplate.setValueTimestamp(null);
+			else if(targetAndTemplate.valueParseFormat!=null)
+			{
+				SimpleDateFormat sdf = new SimpleDateFormat(targetAndTemplate.valueParseFormat);
+				java.util.Date parsedDate=null;
+				try 
+				{
+					parsedDate = sdf.parse(stringToParse.trim());
+				} catch (ParseException e) 
+				{
+					throw new FormException("Error when parsing timestamp "+stringToParse+" from specified format "+targetAndTemplate.valueParseFormat);
+				}
+				
+				targetAndTemplate.setValueTimestamp(parsedDate.getTime());
+			}
 			else
-				target.setValueTimestamp(Long.parseLong(stringToParse.trim()));
+			{
+			
+				targetAndTemplate.setValueTimestamp(Long.parseLong(stringToParse.trim()));
+			}
 		}
-		else if(target.getValueType()==java.sql.Types.BIGINT)
+		else if(targetAndTemplate.getValueType()==java.sql.Types.BIGINT)
 		{
 			if(stringToParse.trim().length()==0)
-				target.setValueBigint(null);
+				targetAndTemplate.setValueBigint(null);
 			else
-				target.setValueBigint(Long.parseLong(stringToParse.trim()));
+				targetAndTemplate.setValueBigint(Long.parseLong(stringToParse.trim()));
 		}
 		else
 			throw new FormException("SQL type unknown");
 		
-		return target;
+		return targetAndTemplate;
 	}
 }

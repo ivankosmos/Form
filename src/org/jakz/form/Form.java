@@ -42,7 +42,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	/**
 	 * Codeable identifier for the form object
 	 */
-	public String id;
+	protected String id;
 	
 	
 	/*
@@ -117,11 +117,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	public IndexedMap<String,Form> content;
 	 
 	/**
-	 * If the element is required. Used for queries and questions.
-	 */
-	public boolean required;
-	/**
-	 * If the element is nullable.
+	 * If the element is nullable or not required.
 	 */
 	public boolean nullable;
 	
@@ -147,16 +143,19 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	
 	
 	/**
-	 * Indicates if a variable is loaded with "other-data" or if "other-data" can be entered instead of an alternative.
+	 * Indicates if "other-data" can be or is entered instead of an alternative.
 	 */
-	public boolean hasOtherField;
+	public boolean alternativeHasOtherField;
 	
 	/**
 	 * Indicates if an alternative is exclusive to the other alternatives.
 	 */
 	public boolean alternativeExclusive;
 	
-	
+	/**
+	 * Parse format to use when parsing date values for example.
+	 */
+	public String valueParseFormat;
 	
 	/**
 	 * String message corresponding to a positive error flag.
@@ -186,7 +185,6 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		text="";
 		instruction="";
 		
-		required =false;
 		nullable = true;
 		writeable = false;
 		tablekey = false;
@@ -196,8 +194,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		errorFlag = false;
 		errorMessage = null;
 		
-		hasOtherField=false;
+		alternativeHasOtherField=false;
 		alternativeExclusive=false;
+		valueParseFormat = null;
 		
 		
 		settingJSONIncludeDataSourceMapping=false;
@@ -229,7 +228,6 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 			value=source.value.createNewScopy();
 		parent=source.parent;
 		//content=source.content;
-		required=source.required;
 		nullable=source.nullable;
 		writeable=source.writeable;
 		tablekey=source.tablekey;
@@ -239,8 +237,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		errorFlag=source.errorFlag;
 		errorMessage=source.errorMessage;
 		
-		hasOtherField=source.hasOtherField;
+		alternativeHasOtherField=source.alternativeHasOtherField;
 		alternativeExclusive=source.alternativeExclusive;
+		valueParseFormat=source.valueParseFormat;
 		
 		settingJSONIncludeDataSourceMapping = source.settingJSONIncludeDataSourceMapping;
 		
@@ -296,19 +295,15 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	public Form(String nid, FieldType ntype) 
 	{
 		init();
-		id=nid;
 		type=ntype;
-		if(type==FieldType.VAR)
-			dataSourcePath=id;
+		setId(nid);
 	}
 	
 	public Form(String nid) 
 	{
 		init();
-		id=nid;
 		type=FieldType.FRM;
-		if(type==FieldType.VAR)
-			dataSourcePath=id;
+		setId(nid);
 	}
 	
 	public String getHTMLGlobalID()
@@ -375,7 +370,14 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	public Form setId(String nId)
 	{
 		id=nId;
+		if(type==FieldType.VAR)
+			dataSourcePath=id;
 		return this;
+	}
+	
+	public String getId()
+	{
+		return id;
 	}
 	
 	public Form setName(String nName)
@@ -497,7 +499,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	
 	public Form setRequired(boolean nRequiered)
 	{
-		required=nRequiered;
+		nullable=!nRequiered;
 		return this;
 	}
 	
@@ -545,7 +547,6 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		j.put("content",content.values());
 		
-		j.put("required",required);
 		j.put("nullable",nullable);
 		j.put("writeable",writeable);
 		j.put("tablekey",tablekey);
@@ -555,8 +556,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		j.put("errorFlag",errorFlag);
 		j.put("errorMessage",errorMessage);
 		
-		j.put("hasOtherField", hasOtherField);
+		j.put("hasOtherField", alternativeHasOtherField);
 		j.put("alternativeExclusive", alternativeExclusive);
+		j.put("valueParseFormat", valueParseFormat);
 		
 		return j;
 	}
@@ -593,7 +595,6 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 			content.put(newForm.id, newForm);
 		}
 		
-		required=source.optBoolean("required");
 		nullable=source.optBoolean("nullable");
 		writeable=source.optBoolean("writeable");
 		tablekey=source.optBoolean("tablekey");
@@ -609,8 +610,9 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		errorFlag=source.optBoolean("errorFlag");
 		errorMessage=source.optString("errorMessage");
 		
-		hasOtherField=source.optBoolean("hasOtherField");
+		alternativeHasOtherField=source.optBoolean("hasOtherField");
 		alternativeExclusive=source.optBoolean("valternativeExclusive");
+		valueParseFormat=source.optString("valueParseFormat");
 	}
 	
 	public boolean getHasContent()
@@ -660,6 +662,12 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	public Form setDataSourcePath(String nDataSourcePath)
 	{
 		dataSourcePath=nDataSourcePath;
+		return this;
+	}
+	
+	public Form setValueParseFormat(String nValueParseFormat)
+	{
+		valueParseFormat=nValueParseFormat;
 		return this;
 	}
 	

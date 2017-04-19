@@ -45,9 +45,30 @@ public class SSFormProcessor
 		return target;
 	}
 	
+	public static void setPreparedStatementParameterFromTypedValue(PreparedStatement s, int psParameterNumber, TypedValue source) throws SQLException, OperationException
+	{
+		if(source.getType()==java.sql.Types.INTEGER)
+			s.setInt(psParameterNumber, source.getValueInteger());
+		else if(source.getType()==java.sql.Types.DOUBLE)
+			s.setDouble(psParameterNumber, source.getValueDouble());
+		else if(source.getType()==java.sql.Types.BOOLEAN)
+			s.setBoolean(psParameterNumber, source.getValueBoolean());
+		else if(source.getType()==java.sql.Types.VARCHAR)
+			s.setString(psParameterNumber, source.getValueVarchar());
+		else if(source.getType()==java.sql.Types.NVARCHAR)
+			s.setNString(psParameterNumber, source.getValueNVarchar());
+		else if(source.getType()==java.sql.Types.TIMESTAMP)
+			s.setTimestamp(psParameterNumber, new java.sql.Timestamp(source.getValueTimestamp()));
+		else if(source.getType()==java.sql.Types.BIGINT)
+			s.setLong(psParameterNumber, source.getValueBigint());
+		else
+			throw new OperationException("SQL type unknown to TypedValue");
+	}
+	
 	//TODO use modified DataEntry? Merge DataEntry and Form
 	//TODO create offset & limit functionality
 	/**
+	 * Populates the form according to the template.
 	 * Can only handle SQL Server paths for this connection
 	 * @param toPopulate
 	 * @param c
@@ -56,7 +77,7 @@ public class SSFormProcessor
 	 * @throws SQLException 
 	 * @throws FormException 
 	 */
-	public static Form populateFormFromDB(Form toPopulate, Connection c, String userToSpecify) throws SQLException, FormException
+	public static Form populateFormFromDB(Form toPopulate, Connection c, Form queryTemplate) throws SQLException, FormException
 	{
 		if(toPopulate.content.size()>1)
 			throw new FormException("Form object is already populated");
@@ -65,29 +86,12 @@ public class SSFormProcessor
 		if(mainTablePath==null)
 			throw new FormException("No main table path");
 		
-		Form queryTemplate = null;
-		
-		if(toPopulate.getHasContent())
-		{
-			queryTemplate = toPopulate.content.getValueAt(0).createNewDcopy();
-		}
-		else
-			throw new FormException("Form object is not populated with template row");
-		
 		Statement s = c.createStatement();
 		String sqlQuery = SSFormProcessor.constructFormSelectQuery(toPopulate);
 		ResultSet r = s.executeQuery(sqlQuery);
-		boolean firstRow =true;
 		for(long iRow = 0;r.next(); iRow++)
 		{
-			Form newQuery;
-			if(firstRow)
-			{
-				newQuery = toPopulate.content.getValueAt(0);
-			}
-			else
-				newQuery = queryTemplate.createNewDcopy();
-			
+			Form newQuery = queryTemplate.createNewDcopy();
 			newQuery.id=""+iRow;
 			
 			for(int iColumn=0; iColumn<newQuery.content.size(); iColumn++)
@@ -102,43 +106,45 @@ public class SSFormProcessor
 				}
 			}
 			
-			if(firstRow)
-				firstRow=false;
-			else
-				toPopulate.add(newQuery);
-			
+			toPopulate.add(newQuery);
 		}
 		
 		return toPopulate;
 	}
 	
-	public static void populateDBFromForm(Connection c, Form source, String userToSpecify) throws FormException, SQLException
+	public static void populateDBFromForm(Connection c, Form source) throws FormException, SQLException, OperationException
 	{
 		String mainTablePath = source.getEvaluatedDBPath();
 		if(mainTablePath==null)
 			throw new FormException("No main table path");
 		
-		
-		String sqlQuery = SSFormProcessor.constructFormInsertUpdateStatement(source);
-		PreparedStatement s = c.prepareStatement(sqlQuery);
-		
-		for(int iRow=0; iRow<source.content.size(); iRow++)
+		if(source.content.size()>0&&source.content.getValueAt(0).content.size()>0) //if form has columns in first row
 		{
-			Form q = source.content.getValueAt(iRow);
 			
-			for(int iColumn = 0; iColumn<q.content.size(); iColumn++)
+			String sqlQuery = SSFormProcessor.constructFormInsertUpdatePreparedStatement(source);
+			PreparedStatement s = c.prepareStatement(sqlQuery);
+			
+			for(int iRow=0; iRow<source.content.size(); iRow++)
 			{
-				Form var = q.content.getValueAt(iColumn);
-				if(var.varMapForeignKey==null)
+				Form q = source.content.getValueAt(iRow);
+				s.clearParameters();
+				for(int iColumn = 0; iColumn<q.content.size(); iColumn++)
 				{
-					//main table
-					//TODO
+					Form var = q.content.getValueAt(iColumn);
+					if(var.dataSourcePath!=null&&var.varMapForeignKey==null)
+					{
+						//main table
+						SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iColumn+1, var.value);
+					}
+					else if(var.varMapForeignKey!=null)
+					{
+						//foreign table
+						//TODO
+					}
+					else throw new FormException("Form variable "+iColumn+" has no dataSourcePath or is not a foreign key.");
 				}
-				else
-				{
-					//foreign table
-					//TODO
-				}
+				
+				s.execute();
 			}
 		}
 	}
@@ -228,7 +234,7 @@ public class SSFormProcessor
 					columnHash.add(fColumnNameEntry);
 				}
 			}
-			else throw new FormException("Form variable "+iVar+" has no dataSourcePath.");
+			else throw new FormException("Form variable "+iVar+" has no dataSourcePath or is not a foreign key.");
 		}
 		
 		String q=new SQL()
@@ -245,7 +251,7 @@ public class SSFormProcessor
 		
 	}
 	
-	public static String constructFormInsertUpdateStatement(Form source) throws FormException
+	public static String constructFormInsertUpdatePreparedStatement(Form source) throws FormException
 	{
 		String mainTablePath = source.getEvaluatedDBPath();
 		if(mainTablePath==null)
@@ -376,7 +382,7 @@ public class SSFormProcessor
 			if(type==java.sql.Types.INTEGER)
 				return "INT";
 			else if(type==java.sql.Types.DOUBLE)
-				return "DOUBLE";
+				return "DOUBLE PRECISION";
 			else if(type==java.sql.Types.BOOLEAN)
 				return "BIT";
 			else if(type==java.sql.Types.VARCHAR)
@@ -403,7 +409,17 @@ public class SSFormProcessor
 	
 	//TODO use modified DataEntry? Merge DataEntry and Form
 	//TODO create offset functionality
-	public static Form produceFormFromDBTable(String tableName, boolean withData, int dataLimit, Connection c) throws SQLException, FormException
+	/**
+	 * Produces a new form with columns that reflects the specified table path.
+	 * @param tableName
+	 * @param withData
+	 * @param dataLimit
+	 * @param c
+	 * @return
+	 * @throws SQLException
+	 * @throws FormException
+	 */
+	public static Form produceFormFromDBTable(String tableName, boolean withData, int dataLimit, Connection c, HashSet<String> columnFilter) throws SQLException, FormException
 	{
 		Form masterForm = new Form(tableName,FieldType.FRM);
 		
@@ -417,101 +433,114 @@ public class SSFormProcessor
 			result =  s.executeQuery("SELECT TOP 1 * FROM "+tableName);
 		
 		ResultSetMetaData resultMeta = result.getMetaData();
+		int colCount = resultMeta.getColumnCount();
+		//System.out.println("meta columns="+resultMeta.getColumnCount());
+		boolean hasRows = false;
 		for(int rowi=0; result.next(); rowi++)
 		{
+			hasRows=true;
 			Form rowForm = new Form(""+rowi,Form.FieldType.QRY);
 			rowForm.name=tableName;
-			int colCount = resultMeta.getColumnCount();
+			
 			for(int coli=1; coli<=colCount; coli++)  //index from 1
 			{
 				String columnName = resultMeta.getColumnName(coli);
-				Form columnForm = new Form(columnName, Form.FieldType.VAR);
-				columnForm.name=columnName;
-				
-				int columnType = resultMeta.getColumnType(coli);
-				//String columnTypeName = resultMeta.getColumnTypeName(coli);
-				int resultSetNullability = resultMeta.isNullable(coli);
-				if(ResultSetMetaData.columnNoNulls==resultSetNullability)
-					columnForm.nullable=false;
-				else if(ResultSetMetaData.columnNullable==resultSetNullability)
-					columnForm.nullable=true;
-				else if(ResultSetMetaData.columnNullableUnknown==resultSetNullability)
-					columnForm.nullable=true;
-				else throw new FormException("Unrecognizeable nullability status when parsing Form");
-				//int jdbcnvarcharordinal = JDBCType.NVARCHAR.ordinal();
-				//int jdbcvarcharordinal = JDBCType.VARCHAR.ordinal();
+				if(columnFilter!=null&&columnFilter.contains(columnName))
+					continue;
 				
 				
-				columnForm.writeable=resultMeta.isWritable(coli);
 				
-				TypedValue tv = new TypedValue(columnType);
-				
-				if(withData)
+				try 
 				{
-					//dummy
-					result.getObject(coli);
-					if(!result.wasNull())
-					{	
-						try 
-						{
-							setTypedValueFromSQLResultSet(tv, result, columnName);
-						} catch (OperationException e) 
-						{
-							throw new FormException("Could not parse Form value of table "+tableName+", column "+columnName+" with type "+columnType+" at relative line index "+rowi);
-						}
-					}
+					Form columnForm = parseDBColumn(rowForm, coli, resultMeta, withData, result);
+					rowForm.add(columnForm);
+				} catch (OperationException e) 
+				{
+					throw new FormException("Could not parse Form value of table "+tableName+", column "+columnName+" at relative line index "+rowi);
 				}
 				
-				columnForm.setValue(tv);
-				
-				rowForm.add(columnForm);
 			}
 			
 			masterForm.add(rowForm);
 		}
+		
+		if(!hasRows) //still add template columns if no row data
+		{
+			Form rowForm = new Form("0",Form.FieldType.QRY);
+			rowForm.name=tableName;
+			
+			for(int coli=1; coli<colCount; coli++)
+			{
+				String columnName = resultMeta.getColumnName(coli);
+				if(columnFilter!=null&&columnFilter.contains(columnName))
+					continue;
+				
+				try 
+				{
+					Form columnForm = parseDBColumn(rowForm, coli, resultMeta, false, null);
+					rowForm.add(columnForm);
+				} catch (OperationException e) 
+				{
+					throw new FormException("Could not parse Form value of table "+tableName+", column "+columnName);
+				}
+			}
+			
+			masterForm.add(rowForm);
+		}
+		
 		return masterForm;
 	}
 	
-	
-	
-	public static String scriptDynamicSQLCreateTable(Form templateForm, boolean addIdentityColumn) throws FormException
+	private static Form parseDBColumn(Form queryRowForm, int columnIndex, ResultSetMetaData resultSetMeta, boolean withData, ResultSet resultSet) throws SQLException, FormException, OperationException
 	{
-		StringBuilder s = new StringBuilder();
-		String mainTablePath = templateForm.getEvaluatedDBPath();
-		Form queryTemplate = null;
-		if(templateForm.getHasContent())
+		String columnName = resultSetMeta.getColumnName(columnIndex);
+		
+		Form columnForm = new Form(columnName, Form.FieldType.VAR);
+		columnForm.name=columnName;
+		
+		int columnType = resultSetMeta.getColumnType(columnIndex);
+		/* -16 nvarchar(max) bug conversion */
+		if(columnType==-16)
+			columnType=java.sql.Types.NVARCHAR;
+		
+		int columnPrecisionOrLength = resultSetMeta.getPrecision(columnIndex);
+		//String columnTypeName = resultMeta.getColumnTypeName(coli);
+		int resultSetNullability = resultSetMeta.isNullable(columnIndex);
+		if(ResultSetMetaData.columnNoNulls==resultSetNullability)
+			columnForm.nullable=false;
+		else if(ResultSetMetaData.columnNullable==resultSetNullability)
+			columnForm.nullable=true;
+		else if(ResultSetMetaData.columnNullableUnknown==resultSetNullability)
+			columnForm.nullable=true;
+		else throw new FormException("Unrecognizeable nullability status when parsing Form");
+		//int jdbcnvarcharordinal = JDBCType.NVARCHAR.ordinal();
+		//int jdbcvarcharordinal = JDBCType.VARCHAR.ordinal();
+		
+		
+		columnForm.writeable=resultSetMeta.isWritable(columnIndex);
+		
+		TypedValue tv = new TypedValue(columnType);
+		if(columnPrecisionOrLength==0)
+			tv.setSizeLimit(null);
+		else
+			tv.setSizeLimit(columnPrecisionOrLength);
+		
+		if(withData)
 		{
-			queryTemplate = templateForm.content.getValueAt(0);
-		}
-		else 
-			throw new FormException("The form template does not have a template row.");
-		
-		s.append("CREATE TABLE "+mainTablePath);
-		s.append("(");
-		
-		
-		if(addIdentityColumn)
-		{
-			s.append(scriptDynamicSQLCreateTableColumnPart(templateForm.getEvaluatedDBTable()+"_id", "INT", null,false,true,true));
+			//dummy
+			resultSet.getObject(columnIndex);
+			if(!resultSet.wasNull())
+			{	
+				setTypedValueFromSQLResultSet(tv, resultSet, columnName);
+			}
 		}
 		
-		for(int iColumn=0; iColumn<templateForm.content.size(); iColumn++)
-		{
-			if(s.length()>0)
-				s.append(",");
-			
-			Form varColumn = queryTemplate.content.getValueAt(iColumn);
-			
-			scriptDynamicSQLCreateTableColumnPart(varColumn.dataSourcePath, SSFormProcessor.getTypeString(varColumn),null,varColumn.nullable,false,false);
-			
-
-		}
-			
-		s.append(");");
-		return s.toString();
+		columnForm.setValue(tv);
+		
+		return columnForm;
 	}
 	
-	public static String scriptDynamicSQLCreateTableColumnPart(String variableName, String typeString, String defaultValueString, boolean nullable, boolean unique, boolean identity) throws FormException
+	public static String scriptDynamicSQLCreateColumnDefinitionColumnPart(String variableName, String typeString, String defaultValueString, boolean nullable, boolean unique, boolean identity) throws FormException
 	{
 		StringBuilder s = new StringBuilder();
 		
@@ -530,6 +559,85 @@ public class SSFormProcessor
 			s.append(" DEFAULT "+defaultValueString);
 		
 		return s.toString();
+	}
+	
+	public static String scriptDynamicSQLCreateColumnDefinition(Form source, boolean addIdentityColumn) throws FormException
+	{
+		
+		Form query =null;
+		if(source.type==FieldType.FRM)
+		{
+			if(source.content.size()>0)
+				query = source.content.getValueAt(0);
+			else
+				throw new FormException("Form does not have any queries to use as template");
+		}
+		else if(source.type==FieldType.QRY)
+			query = source;
+		else
+			throw new FormException("Must pass a form or query type Form object.");
+		
+		StringBuilder s = new StringBuilder();
+		
+		if(addIdentityColumn)
+		{
+			s.append(scriptDynamicSQLCreateColumnDefinitionColumnPart(query.getEvaluatedDBTable()+"_id", "INT", null,false,true,true));
+		}
+		
+		for(int iColumn=0; iColumn<query.content.size(); iColumn++)
+		{
+			Form varColumn = query.content.getValueAt(iColumn);
+			
+			if(varColumn.getHasContent())
+			{
+				//has alternatives
+				for(int iAlt=0; iAlt<varColumn.content.size(); iAlt++)
+				{
+					Form altForm = varColumn.content.getValueAt(iAlt);
+					if(altForm.type==FieldType.ALT)
+					{
+						//alternative value placeholder
+						//always nullable
+						if(s.length()>0)
+							s.append(",");
+						s.append(scriptDynamicSQLCreateColumnDefinitionColumnPart(varColumn.dataSourcePath+"_"+altForm.getId(),SSFormProcessor.getTypeString(altForm),null,true,false,false));
+						
+						//alternative other value placeholder
+						//always nullable
+						if(altForm.alternativeHasOtherField)
+						{
+							altForm.getValue().setSizeLimit(null); //set size limit for the other-field
+							if(s.length()>0)
+								s.append(",");
+							s.append(scriptDynamicSQLCreateColumnDefinitionColumnPart(varColumn.dataSourcePath+"_"+altForm.getId()+"_other",SSFormProcessor.getTypeString(altForm),null,true,false,false));
+						}
+					}
+				}
+			}
+			
+			if(s.length()>0)
+				s.append(",");
+			s.append(scriptDynamicSQLCreateColumnDefinitionColumnPart(varColumn.dataSourcePath, SSFormProcessor.getTypeString(varColumn),null,varColumn.nullable,false,false));
+		}
+			
+
+		return s.toString();
+	}
+	
+	public static String scriptDynamicSQLCreateVersionedTable(Form source, boolean addIdentityColumn) throws FormException
+	{
+		StringBuilder s = new StringBuilder();
+		s.append("CREATE TABLE "+source.getEvaluatedDBPath()+"(");
+		s.append(scriptDynamicSQLCreateColumnDefinition(source,addIdentityColumn));
+		s.append(");");
+		return s.toString();
+	}
+	
+	public static void createVersionedTable(Form surveyForm, Connection c, boolean addIdentityColumn) throws FormException, SQLException
+	{
+		String q = SSFormProcessor.scriptDynamicSQLCreateVersionedTable(surveyForm,addIdentityColumn);
+		Statement s = c.createStatement();
+		s.execute(q);
 	}
 
 }
