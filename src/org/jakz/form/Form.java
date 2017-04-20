@@ -102,9 +102,14 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	public String instruction;
 	
 	/**
-	 * Definitions of types for each value in the question/variable. Can contain question/variable data.
+	 * Definitions of type for the question/variable. Can contain question/variable data.
 	 */
 	protected TypedValue value;
+	
+	/**
+	 * Other data value (string).
+	 */
+	protected String otherValue;
 	
 	/**
 	 * Parent Form object in content hierarchy.
@@ -180,6 +185,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		parent=null;
 		content=new IndexedMap<String, Form>();
 		value=null;
+		otherValue=null;
 		
 		name="";
 		text="";
@@ -226,6 +232,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		value=null;
 		if(source.value!=null)
 			value=source.value.createNewScopy();
+		otherValue=source.otherValue;
 		parent=source.parent;
 		//content=source.content;
 		nullable=source.nullable;
@@ -397,6 +404,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	public Long getValueBigint() {return value.getValueBigint();}
 	public Double getValueDouble() {return value.getValueDouble();}
 	
+	public String getOtherValue(){return otherValue;}
 	
 	
 	public Form setValueInteger(Integer nValue) throws NumberFormatException
@@ -491,6 +499,12 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		return this;
 	}
 	
+	public Form setOtherValue(String nOtherValue)
+	{
+		otherValue=nOtherValue;
+		return this;
+	}
+	
 	public Form setText(String nText)
 	{
 		text=nText;
@@ -540,6 +554,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		j.put("text", text);
 		j.put("type", type.name());
 		j.put("value",value);
+		j.put("otherValue",otherValue);
 		if(parent!=null)
 			j.put("parent", parent.id);
 		else
@@ -584,6 +599,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		
 		value=new TypedValue();
 		value.fromJSONObject(source.getJSONObject("value"));
+		otherValue=source.optString("otherValue");
 		
 		content=new IndexedMap<String,Form>();
 		org.jakz.common.JSONArray contentArray = source.getJSONArray("content");

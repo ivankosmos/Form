@@ -101,10 +101,18 @@ public class CSVFormProcessor
 			}
 		}
 		
-		
+		Form errVar = null;
 		for(int iRow=0; rowIt.hasNext(); iRow++)
 		{
-			Form q = new Form(""+iRow,FieldType.QRY);
+			Form q = null;
+			if(templateQuery!=null)
+			{
+				q=templateQuery.createNewDcopy();
+				q.id=""+iRow;
+			}
+			else
+				q = new Form(""+iRow,FieldType.QRY);
+			
 			currentRow = rowIt.next();
 			cellIt = currentRow.iterator();
 			rowIsEmpty=true;
@@ -119,8 +127,10 @@ public class CSVFormProcessor
 				//alternative columns pre work
 				String altColumnMaster = null;
 				String alternativeString = null;
+				boolean isOther = false;
 				if(fileColumnName.indexOf("_other")>=0)
 				{
+					isOther=true;
 					String alt = fileColumnName.substring(0,fileColumnName.lastIndexOf("_other"));
 					altColumnMaster = alt.substring(0,alt.lastIndexOf('_'));
 					alternativeString = fileColumnName.substring(alt.lastIndexOf('_')+1,fileColumnName.lastIndexOf("_other")).trim();
@@ -145,25 +155,29 @@ public class CSVFormProcessor
 				if(cellContent.trim().length()>0)
 					rowIsBlank=false;
 				
-				Form newVar = new Form(fileColumnName,FieldType.VAR);
+				
 				try
 				{
 					
-					if(templateQuery!=null&&templateQuery.content.containsKey(fileColumnName))
+					if(q.content.containsKey(fileColumnName))
 					{
-						Form templateVar = templateQuery.content.getValue(fileColumnName);
-						newVar =templateVar.createNewDcopy();
-						
+						Form newVar =q.content.getValue(fileColumnName);
+						errVar=newVar;
 						parseFormValue(newVar,cellContent);
-							
+					}
+					else if(templateQuery!=null&&templateQuery.content.containsKey(fileColumnName))
+					{
+						Form newVar = templateQuery.content.getValue(fileColumnName).createNewDcopy();
+						errVar=newVar;
+						parseFormValue(newVar,cellContent);
 						q.add(newVar);
 					}
-					else if(isAlternative)
+					else if(isAlternative && (q.content.containsKey(altColumnMaster) || (templateQuery!=null && templateQuery.content.containsKey(altColumnMaster))))
 					{
 						Form masterVar = null;
 						
 						//create master if not present
-						if(!q.content.containsKey(altColumnMaster))
+						if(!q.content.containsKey(altColumnMaster)&&templateQuery.content.containsKey(altColumnMaster))
 						{
 							masterVar = templateQuery.content.getValue(altColumnMaster).createNewDcopy();
 							q.add(masterVar);
@@ -173,18 +187,26 @@ public class CSVFormProcessor
 							masterVar = q.content.getValue(altColumnMaster);
 						}
 						
+						
+						Form newAlt =null;
 						if(masterVar.getHasContent()&&masterVar.content.containsKey(alternativeString))
 						{
-							newVar = masterVar.content.getValue(alternativeString);
-							parseFormValue(newVar,cellContent);
+							newAlt = masterVar.content.getValue(alternativeString);
+							errVar=newAlt;
+							
+							if(isOther&&newAlt.alternativeHasOtherField)
+								newAlt.setOtherValue(cellContent);
+							else
+								parseFormValue(newAlt,cellContent);
 						}
 						else throw new FormException("Unknown alternative detected.");
 						
 					}
 					else if(!settingSkipUnmappedColumns)
 					{
-						//newVar = new Form(fileColumnName,FieldType.VAR);
+						Form newVar = new Form(fileColumnName,FieldType.VAR);
 						newVar.setValue(Types.NVARCHAR);
+						errVar=newVar;
 						parseFormValue(newVar,cellContent);
 						q.add(newVar);
 					}
@@ -192,13 +214,13 @@ public class CSVFormProcessor
 				catch (Exception e)
 				{
 					hasPopulationErrors=true;
-					newVar.errorFlag=true;
+					errVar.errorFlag=true;
 					String s = "Syntax error for variable "+fileColumnName+" ("+ iCell+","+iRow+"). Cell content ["+cellContent+"].";
-					if(newVar.getValue()!=null&&newVar.getValue().getType()!=null)
-						s=s+" Data type="+newVar.getValue().getTypeString()+", Nullable="+newVar.nullable+", Length="+newVar.getValue().getSizeLimit();
+					if(errVar.getValue()!=null&&errVar.getValue().getType()!=null)
+						s=s+" Data type="+errVar.getValue().getTypeString()+", Nullable="+errVar.nullable+", Length="+errVar.getValue().getSizeLimit();
 					
 					messageList.add(s);
-					newVar.errorMessage=s;
+					errVar.errorMessage=s;
 				}
 			}
 			

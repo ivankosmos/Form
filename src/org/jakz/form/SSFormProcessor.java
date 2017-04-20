@@ -22,6 +22,13 @@ public class SSFormProcessor
 {
 	static final String tableNamePrefix ="_SSFP";
 	
+	public static String quotateSSString(Object source)
+	{
+		if (source==null)
+			return ""+null;
+		else
+			return "'"+source+"'";
+	}
 	
 	public static TypedValue setTypedValueFromSQLResultSet(TypedValue target, ResultSet r, String columnLabel) throws SQLException, OperationException
 	{
@@ -45,24 +52,77 @@ public class SSFormProcessor
 		return target;
 	}
 	
-	public static void setPreparedStatementParameterFromTypedValue(PreparedStatement s, int psParameterNumber, TypedValue source) throws SQLException, OperationException
-	{
+	public static void setPreparedStatementParameterFromTypedValue(PreparedStatement s, int psParameterNumber, TypedValue source, StringBuilder debugQuery) throws SQLException, OperationException
+	{	
+		String newQuery = null;
 		if(source.getType()==java.sql.Types.INTEGER)
-			s.setInt(psParameterNumber, source.getValueInteger());
+		{
+			if(source.getValueInteger()==null)
+				s.setNull(psParameterNumber, java.sql.Types.INTEGER);
+			else
+				s.setInt(psParameterNumber, source.getValueInteger());
+			if(debugQuery!=null)
+				newQuery=debugQuery.toString().replaceFirst("\\?", ""+source.getValueInteger());
+		}
 		else if(source.getType()==java.sql.Types.DOUBLE)
-			s.setDouble(psParameterNumber, source.getValueDouble());
+		{
+			if(source.getValueDouble()==null)
+				s.setNull(psParameterNumber, java.sql.Types.DOUBLE);
+			else
+				s.setDouble(psParameterNumber, source.getValueDouble());
+			if(debugQuery!=null)
+				newQuery=debugQuery.toString().replaceFirst("\\?", ""+source.getValueDouble());
+		}
 		else if(source.getType()==java.sql.Types.BOOLEAN)
-			s.setBoolean(psParameterNumber, source.getValueBoolean());
+		{
+			if(source.getValueBoolean()==null)
+				s.setNull(psParameterNumber, java.sql.Types.BOOLEAN);
+			else
+				s.setBoolean(psParameterNumber, source.getValueBoolean());
+			if(debugQuery!=null)
+				newQuery=debugQuery.toString().replaceFirst("\\?", quotateSSString(source.getValueBoolean()));
+		}
 		else if(source.getType()==java.sql.Types.VARCHAR)
-			s.setString(psParameterNumber, source.getValueVarchar());
+		{
+			if(source.getValueVarchar()==null)
+				s.setNull(psParameterNumber, java.sql.Types.VARCHAR);
+			else
+				s.setString(psParameterNumber, source.getValueVarchar());
+			if(debugQuery!=null)
+				newQuery=debugQuery.toString().replaceFirst("\\?", quotateSSString(source.getValueVarchar()));
+		}
 		else if(source.getType()==java.sql.Types.NVARCHAR)
-			s.setNString(psParameterNumber, source.getValueNVarchar());
+		{
+			if(source.getValueNVarchar()==null)
+				s.setNull(psParameterNumber, java.sql.Types.NVARCHAR);
+			else
+				s.setNString(psParameterNumber, source.getValueNVarchar());
+			if(debugQuery!=null)
+				newQuery=debugQuery.toString().replaceFirst("\\?", quotateSSString(source.getValueNVarchar()));
+		}
 		else if(source.getType()==java.sql.Types.TIMESTAMP)
-			s.setTimestamp(psParameterNumber, new java.sql.Timestamp(source.getValueTimestamp()));
+		{
+			if(source.getValueTimestamp()==null)
+				s.setNull(psParameterNumber, java.sql.Types.TIMESTAMP);
+			else
+				s.setTimestamp(psParameterNumber, new java.sql.Timestamp(source.getValueTimestamp()));
+			if(debugQuery!=null)
+				newQuery=debugQuery.toString().replaceFirst("\\?", quotateSSString(new java.sql.Timestamp(source.getValueTimestamp()).toString()));
+		}
 		else if(source.getType()==java.sql.Types.BIGINT)
-			s.setLong(psParameterNumber, source.getValueBigint());
+		{
+			if(source.getValueBigint()==null)
+				s.setNull(psParameterNumber, java.sql.Types.BIGINT);
+			else
+				s.setLong(psParameterNumber, source.getValueBigint());
+			if(debugQuery!=null)
+				newQuery=debugQuery.toString().replaceFirst("\\?", ""+source.getValueBigint());
+		}
 		else
-			throw new OperationException("SQL type unknown to TypedValue");
+			throw new OperationException("SQL type unknown to SSFormProcessor.");
+		
+		if(debugQuery!=null)
+			debugQuery.replace(0, debugQuery.length(), newQuery);
 	}
 	
 	//TODO use modified DataEntry? Merge DataEntry and Form
@@ -112,6 +172,14 @@ public class SSFormProcessor
 		return toPopulate;
 	}
 	
+	/**
+	 * Corresponds to constructFormInsertUpdatePreparedStatement
+	 * @param c
+	 * @param source
+	 * @throws FormException
+	 * @throws SQLException
+	 * @throws OperationException
+	 */
 	public static void populateDBFromForm(Connection c, Form source) throws FormException, SQLException, OperationException
 	{
 		String mainTablePath = source.getEvaluatedDBPath();
@@ -120,7 +188,7 @@ public class SSFormProcessor
 		
 		if(source.content.size()>0&&source.content.getValueAt(0).content.size()>0) //if form has columns in first row
 		{
-			
+			//TODO add saftey map for mapping right column to the right parameter
 			String sqlQuery = SSFormProcessor.constructFormInsertUpdatePreparedStatement(source);
 			PreparedStatement s = c.prepareStatement(sqlQuery);
 			
@@ -128,22 +196,51 @@ public class SSFormProcessor
 			{
 				Form q = source.content.getValueAt(iRow);
 				s.clearParameters();
+				StringBuilder debugQuery = new StringBuilder(sqlQuery);
+				
+				int iParameter =1;
 				for(int iColumn = 0; iColumn<q.content.size(); iColumn++)
 				{
 					Form var = q.content.getValueAt(iColumn);
-					if(var.dataSourcePath!=null&&var.varMapForeignKey==null)
+					
+					try
 					{
-						//main table
-						SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iColumn+1, var.value);
+						if(var.dataSourcePath!=null&&var.varMapForeignKey==null)
+						{
+							//main table
+							SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iParameter++, var.value,debugQuery);
+							
+							if(var.getHasContent())
+							{
+								//has alternatives
+								for(int iAlt=0; iAlt<var.content.size(); iAlt++)
+								{
+									Form alt = var.content.getValueAt(iAlt);
+									SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iParameter++, alt.value,debugQuery);
+									
+									if(alt.alternativeHasOtherField)
+									{
+										TypedValue otherValueField = new TypedValue();
+										otherValueField.setNvarchar(alt.getOtherValue());
+										SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iParameter++, otherValueField,debugQuery);
+									}
+								}
+							}
+						}
+						//else if(var.varMapForeignKey!=null)
+						//{
+							//foreign table
+							//TODO
+						//}
+						else throw new FormException("Form variable "+var.id+" has no dataSourcePath or is not a foreign key.");
 					}
-					else if(var.varMapForeignKey!=null)
+					catch (Exception e)
 					{
-						//foreign table
-						//TODO
+						throw new FormException("Error when populating Form variable "+var.id+" on row index "+iRow+".",e);
 					}
-					else throw new FormException("Form variable "+iColumn+" has no dataSourcePath or is not a foreign key.");
 				}
 				
+				System.out.println(s);
 				s.execute();
 			}
 		}
@@ -302,57 +399,62 @@ public class SSFormProcessor
 				
 				insertColumnList.append(insertColumnListEntry);
 			
-				/*
-				if(var.varMapForeignKey!=null)
+				//insertValueSelectQuery_columns
+				insertValueSelectQuery_columnsEntry = "?";
+				if(insertValueSelectQuery_columns.length()>0)
+					insertValueSelectQuery_columns.append(",");
+				
+				insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
+				
+				if(var.getHasContent())
 				{
-					//insertValueSelectQuery_columns
-					insertValueSelectQuery_columnsEntry = tableNamePrefix+iVar+"."+var.varMapForeignKey;
-					if(insertValueSelectQuery_columns.length()>0)
-						insertValueSelectQuery_columns.append(",");
-					
-					insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
-					
-					//insertValueSelectQuery_fromTables
-					insertValueSelectQuery_fromTablesEntry = var.varMapForeignTable;
-					String foreignTableName =  Form.get1stLevelDBName(var.varMapForeignTable);
-					String foreignSchemaName = Form.get2ndLevelDBName(var.varMapForeignTable);
-					
-					insertValueSelectQuery_fromTablesEntry = Form.constructDBPath(foreignSchemaName, foreignTableName, null)+" "+tableNamePrefix+""+iVar;
-					if(insertValueSelectQuery_fromTables.length()>0)
-						insertValueSelectQuery_fromTables.append(",");
-					else
+					for(int iAlt=0; iAlt<var.content.size(); iAlt++)
 					{
-						//append main table
-						insertValueSelectQuery_fromTables.append(mainTablePath+" "+tableNamePrefix+"M,"); //includes comma
+						
+						Form alt = var.content.getValueAt(iAlt);
+						
+						//alt normal
+						//insertColumnList
+						insertColumnListEntry = Form.get1stLevelDBName(var.dataSourcePath)+"_"+alt.id;
+						if(insertColumnList.length()>0)
+							insertColumnList.append(",");
+						
+						insertColumnList.append(insertColumnListEntry);
+					
+						//insertValueSelectQuery_columns
+						insertValueSelectQuery_columnsEntry = "?";
+						if(insertValueSelectQuery_columns.length()>0)
+							insertValueSelectQuery_columns.append(",");
+						
+						insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
+						
+						//alt other
+						if(alt.alternativeHasOtherField)
+						{
+							//insertColumnList
+							insertColumnListEntry = Form.get1stLevelDBName(var.dataSourcePath)+"_"+alt.id+"_other";
+							if(insertColumnList.length()>0)
+								insertColumnList.append(",");
+							
+							insertColumnList.append(insertColumnListEntry);
+						
+							//insertValueSelectQuery_columns
+							insertValueSelectQuery_columnsEntry = "?";
+							if(insertValueSelectQuery_columns.length()>0)
+								insertValueSelectQuery_columns.append(",");
+							
+							insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
+						}
 					}
 					
-					insertValueSelectQuery_fromTables.append(insertValueSelectQuery_fromTablesEntry);
-					
-					//insertValueSelectQuery_whereCondition
-					insertValueSelectQuery_whereConditionEntry = tableNamePrefix+"M."+var.dataSourcePath+"="+tableNamePrefix+iVar+"."+var.varMapForeignKey;
-					if(insertValueSelectQuery_whereCondition.length()>0)
-						insertValueSelectQuery_whereCondition.append(",");
-					
-					insertValueSelectQuery_whereCondition.append(insertValueSelectQuery_whereConditionEntry);
-					
 				}
-				*/
-				//else
-				//{
-					//insertValueSelectQuery_columns
-					insertValueSelectQuery_columnsEntry = "?";
-					if(insertValueSelectQuery_columns.length()>0)
-						insertValueSelectQuery_columns.append(",");
-					
-					insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
-				//}
 			}
 			else throw new FormException("Form variable "+iVar+" has no dataSourcePath.");
 		}
 		
 
-		String q ="INSERT INTO("+mainTablePath+")";
-		q+="("+insertColumnList+")";
+		String q ="INSERT INTO "+mainTablePath;
+		q+=" ("+insertColumnList+")";
 		q+=" SELECT "+insertValueSelectQuery_columns;
 		
 		/*
