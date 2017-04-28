@@ -14,6 +14,7 @@ import java.util.Iterator;
 
 import org.apache.ibatis.jdbc.SQL;
 import org.jakz.common.ApplicationException;
+import org.jakz.common.IndexedMap;
 import org.jakz.common.OperationException;
 import org.jakz.common.TypedValue;
 import org.jakz.form.Form.FieldType;
@@ -128,7 +129,7 @@ public class SSFormProcessor
 	//TODO use modified DataEntry? Merge DataEntry and Form
 	//TODO create offset & limit functionality
 	/**
-	 * Populates the form according to the template.
+	 * Populates the form with data according to the template.
 	 * Can only handle SQL Server paths for this connection
 	 * @param toPopulate
 	 * @param c
@@ -137,17 +138,17 @@ public class SSFormProcessor
 	 * @throws SQLException 
 	 * @throws FormException 
 	 */
-	public static Form populateFormFromDB(Form toPopulate, Connection c, Form queryTemplate) throws SQLException, FormException
+	public static Form populateFormFromDB(Form toPopulate, Connection c, Form queryTemplate, Integer limit) throws SQLException, FormException
 	{
 		if(toPopulate.content.size()>1)
 			throw new FormException("Form object is already populated");
 		
-		String mainTablePath = toPopulate.getEvaluatedDBPath();
+		String mainTablePath = queryTemplate.getEvaluatedDBPath();
 		if(mainTablePath==null)
 			throw new FormException("No main table path");
 		
 		Statement s = c.createStatement();
-		String sqlQuery = SSFormProcessor.constructFormSelectQuery(toPopulate);
+		String sqlQuery = SSFormProcessor.constructFormSelectQuery(queryTemplate, limit, null);
 		ResultSet r = s.executeQuery(sqlQuery);
 		for(long iRow = 0;r.next(); iRow++)
 		{
@@ -173,14 +174,14 @@ public class SSFormProcessor
 	}
 	
 	/**
-	 * Corresponds to constructFormInsertUpdatePreparedStatement
+	 * Corresponds to constructFormInsertUpdatePreparedStatement. Must contain the exact values to be entered, even foreign keys.
 	 * @param c
 	 * @param source
 	 * @throws FormException
 	 * @throws SQLException
 	 * @throws OperationException
 	 */
-	public static void populateDBFromForm(Connection c, Form source) throws FormException, SQLException, OperationException
+	public static void populateDBFromForm(Connection c, Form source, boolean insert, boolean update) throws FormException, SQLException, OperationException
 	{
 		String mainTablePath = source.getEvaluatedDBPath();
 		if(mainTablePath==null)
@@ -188,9 +189,13 @@ public class SSFormProcessor
 		
 		if(source.content.size()>0&&source.content.getValueAt(0).content.size()>0) //if form has columns in first row
 		{
+			String sqlQuery;
+			
 			//TODO add saftey map for mapping right column to the right parameter
-			String sqlQuery = SSFormProcessor.constructFormInsertUpdatePreparedStatement(source);
+			sqlQuery = SSFormProcessor.constructFormInsertUpdatePreparedStatement(source, insert, update);
 			PreparedStatement s = c.prepareStatement(sqlQuery);
+			
+			
 			
 			for(int iRow=0; iRow<source.content.size(); iRow++)
 			{
@@ -208,6 +213,8 @@ public class SSFormProcessor
 						if(var.dataSourcePath!=null&&var.varMapForeignKey==null)
 						{
 							//main table
+							//foreign table
+							//value must be populated with foreign key before this
 							SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iParameter++, var.value,debugQuery);
 							
 							if(var.getHasContent())
@@ -227,12 +234,7 @@ public class SSFormProcessor
 								}
 							}
 						}
-						//else if(var.varMapForeignKey!=null)
-						//{
-							//foreign table
-							//TODO
-						//}
-						else throw new FormException("Form variable "+var.id+" has no dataSourcePath or is not a foreign key.");
+						else throw new FormException("Form variable "+var.id+" has no dataSourcePath");
 					}
 					catch (Exception e)
 					{
@@ -252,9 +254,9 @@ public class SSFormProcessor
 	 * @return
 	 * @throws FormException 
 	 */
-	private static String constructFormSelectQuery(Form toPopulate) throws FormException
+	private static String constructFormSelectQuery(Form queryTemplate, Integer limit, IndexedMap<String,Boolean> columnOrderBy) throws FormException
 	{	
-		String mainTablePath = toPopulate.getEvaluatedDBPath();
+		String mainTablePath = queryTemplate.getEvaluatedDBPath();
 		if(mainTablePath==null)
 			throw new FormException("No main table path");
 		
@@ -267,22 +269,19 @@ public class SSFormProcessor
 		
 		//add main table
 		fromTables.append(mainTablePath+" "+tableNamePrefix+"M");
-		Form query =null;
-		if(toPopulate.type==FieldType.FRM)
+		if(queryTemplate.type==FieldType.FRM)
 		{
-			if(toPopulate.content.size()>0)
-				query = toPopulate.content.getValueAt(0);
+			if(queryTemplate.content.size()>0)
+				queryTemplate = queryTemplate.content.getValueAt(0);
 			else
 				throw new FormException("Form does not have any queries to use as template");
 		}
-		else if(toPopulate.type==FieldType.QRY)
-			query = toPopulate;
-		else
+		else if(queryTemplate.type!=FieldType.QRY)
 			throw new FormException("Must pass a form or query type Form object.");
 		
-		for(int iVar=0; iVar<query.content.size(); iVar++)
+		for(int iVar=0; iVar<queryTemplate.content.size(); iVar++)
 		{
-			Form var = query.content.getValueAt(iVar);
+			Form var = queryTemplate.content.getValueAt(iVar);
 			String fColumnNameEntry;
 			
 			if(var.varMapForeignKey!=null)
@@ -334,36 +333,70 @@ public class SSFormProcessor
 			else throw new FormException("Form variable "+iVar+" has no dataSourcePath or is not a foreign key.");
 		}
 		
-		String q=new SQL()
-		{
-			{
-				SELECT(columns.toString());
-				FROM(fromTables.toString());
-				WHERE(whereCondition.toString());
-				//ORDER_BY("");
-			}
-		}.toString();
+		String q="";
+		q+="SELECT ";
+		if(limit!=null&&limit>=0)
+			q+="TOP "+limit;
+		q+=" ("+columns.toString()+")";
+		q+=" FROM "+fromTables.toString();
+		q+=" WHERE "+whereCondition.toString();
 		
+		if(columnOrderBy!=null)
+		{
+			StringBuilder columnOrderingPart = new StringBuilder();
+			for(int i=0; i<columnOrderBy.size(); i++)
+			{
+				String columnName = columnOrderBy.getKeyAt(i);
+				if(queryTemplate.content.containsKey(columnName))
+				{
+					if(columnOrderingPart.length()<1)
+						columnOrderingPart.append(" ORDER BY ");
+					else
+						columnOrderingPart.append(",");
+					
+					columnOrderingPart.append(columnName);
+					
+					if(!columnOrderBy.getValueAt(i))
+						columnOrderingPart.append(" DESC");
+				}
+			}
+			
+			q+=columnOrderingPart.toString();
+		}
 		return q;
 		
 	}
 	
-	public static String constructFormInsertUpdatePreparedStatement(Form source) throws FormException
+	
+	
+	/**
+	 * Construct a prepared statement for inserting or updating a table.
+	 * @param source
+	 * @param insert
+	 * @param update
+	 * @return
+	 * @throws FormException
+	 */
+	public static String constructFormInsertUpdatePreparedStatement(Form source, boolean insert, boolean update) throws FormException
 	{
 		String mainTablePath = source.getEvaluatedDBPath();
 		if(mainTablePath==null)
 			throw new FormException("No main table path");
 		
 		
+		
+		
 		//insert
 		StringBuilder insertColumnList = new StringBuilder();
 		StringBuilder insertValueSelectQuery_columns = new StringBuilder();
-		StringBuilder insertValueSelectQuery_fromTables = new StringBuilder();
-		StringBuilder insertValueSelectQuery_whereCondition = new StringBuilder();
+		StringBuilder insertFromRemoteTableList = new StringBuilder();
 		
 		//update
-		//ArrayList<StringBuilder> updateColumnValueList = new ArrayList<StringBuilder>();
-		//ArrayList<StringBuilder> updateWhereCondition = new ArrayList<StringBuilder>();
+		StringBuilder updateColumnList = new StringBuilder();
+		
+		//common
+		StringBuilder conditionQueryPart = new StringBuilder();
+		
 		boolean hasKey = false;
 		
 		
@@ -388,84 +421,113 @@ public class SSFormProcessor
 			if(var.tablekey)
 				hasKey=true;
 			
-			String insertColumnListEntry,insertValueSelectQuery_columnsEntry,insertValueSelectQuery_fromTablesEntry,insertValueSelectQuery_whereConditionEntry;
-			
-			if(var.dataSourcePath!=null)
+			if(var.dataSourcePath!=null&&var.varMapForeignKey==null)
 			{
-				//insertColumnList
-				insertColumnListEntry = Form.get1stLevelDBName(var.dataSourcePath);
-				if(insertColumnList.length()>0)
-					insertColumnList.append(",");
 				
-				insertColumnList.append(insertColumnListEntry);
-			
-				//insertValueSelectQuery_columns
-				insertValueSelectQuery_columnsEntry = "?";
-				if(insertValueSelectQuery_columns.length()>0)
-					insertValueSelectQuery_columns.append(",");
-				
-				insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
+				appendColumnToInsertQuery(Form.get1stLevelDBName(var.dataSourcePath),insertColumnList,insertValueSelectQuery_columns);
+				appendColumnToUpdateQuery(Form.get1stLevelDBName(var.dataSourcePath),updateColumnList);
 				
 				if(var.getHasContent())
 				{
 					for(int iAlt=0; iAlt<var.content.size(); iAlt++)
 					{
-						
 						Form alt = var.content.getValueAt(iAlt);
-						
 						//alt normal
-						//insertColumnList
-						insertColumnListEntry = Form.get1stLevelDBName(var.dataSourcePath)+"_"+alt.id;
-						if(insertColumnList.length()>0)
-							insertColumnList.append(",");
-						
-						insertColumnList.append(insertColumnListEntry);
-					
-						//insertValueSelectQuery_columns
-						insertValueSelectQuery_columnsEntry = "?";
-						if(insertValueSelectQuery_columns.length()>0)
-							insertValueSelectQuery_columns.append(",");
-						
-						insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
+						appendColumnToInsertQuery(Form.get1stLevelDBName(var.dataSourcePath)+"_"+alt.id,insertColumnList,insertValueSelectQuery_columns);
+						appendColumnToUpdateQuery(Form.get1stLevelDBName(var.dataSourcePath)+"_"+alt.id,updateColumnList);
 						
 						//alt other
 						if(alt.alternativeHasOtherField)
 						{
-							//insertColumnList
-							insertColumnListEntry = Form.get1stLevelDBName(var.dataSourcePath)+"_"+alt.id+"_other";
-							if(insertColumnList.length()>0)
-								insertColumnList.append(",");
-							
-							insertColumnList.append(insertColumnListEntry);
-						
-							//insertValueSelectQuery_columns
-							insertValueSelectQuery_columnsEntry = "?";
-							if(insertValueSelectQuery_columns.length()>0)
-								insertValueSelectQuery_columns.append(",");
-							
-							insertValueSelectQuery_columns.append(insertValueSelectQuery_columnsEntry);
+							appendColumnToInsertQuery(Form.get1stLevelDBName(var.dataSourcePath)+"_"+alt.id+"_other",insertColumnList,insertValueSelectQuery_columns);
+							appendColumnToUpdateQuery(Form.get1stLevelDBName(var.dataSourcePath)+"_"+alt.id+"_other",updateColumnList);
 						}
 					}
 					
 				}
 			}
-			else throw new FormException("Form variable "+iVar+" has no dataSourcePath.");
+			else if(var.varMapForeignKey!=null)
+			{
+				appendRemoteColumnToInsertQuery(iVar, var.varMapForeignTable, var.dataSourcePath, var.varMapForeignKey, "value here", var.varMapForeignLabel, insertColumnList, insertValueSelectQuery_columns, insertFromRemoteTableList, conditionQueryPart);
+			}
+			else throw new FormException("Form variable "+var.id+" has no dataSourcePath or is not a foreign key.");
 		}
 		
 
-		String q ="INSERT INTO "+mainTablePath;
-		q+=" ("+insertColumnList+")";
-		q+=" SELECT "+insertValueSelectQuery_columns;
+		String q ="";
 		
-		/*
-		if(insertValueSelectQuery_fromTables.length()>0)
-			q+=" FROM "+insertValueSelectQuery_fromTables;
+		if(update)
+		{
+			q+="UPDATE "+mainTablePath;
+			q+="SET "+updateColumnList;
+			//TODO
+			q+=";";
+		}
 		
-		if(insertValueSelectQuery_whereCondition.length()>0)
-			q+=" WHERE ("+insertValueSelectQuery_whereCondition+")";
-		 */
+		if(insert)
+		{
+			q+="INSERT INTO "+mainTablePath;
+			q+=" ("+insertColumnList+")";
+			q+=" SELECT "+insertValueSelectQuery_columns;
+			if(insertFromRemoteTableList.length()>0)
+				q+=" FROM "+insertFromRemoteTableList.toString();
+			if(conditionQueryPart.length()>0)
+				q+=" WHERE "+conditionQueryPart.toString();
+			
+			q+=";";
+		}
+		
+		
+		
 		
 		return q;
+	}
+	
+	private static void appendColumnToInsertQuery(String columnListEntry, StringBuilder insertColumnListQueryPart, StringBuilder insertValueListQueryPart)
+	{
+
+		if(insertColumnListQueryPart.length()>0)
+			insertColumnListQueryPart.append(",");
+		
+		insertColumnListQueryPart.append(columnListEntry);
+		
+		String valueListEntry = "?";
+		if(insertValueListQueryPart.length()>0)
+			insertValueListQueryPart.append(",");
+		
+		insertValueListQueryPart.append(valueListEntry);
+	}
+	
+	private static void appendColumnToUpdateQuery(String columnListEntry, StringBuilder updateColumnListQueryPart)
+	{
+		if(updateColumnListQueryPart.length()>0)
+			updateColumnListQueryPart.append(",");
+		
+		updateColumnListQueryPart.append(columnListEntry+"=?");
+	}
+	
+	private static void appendRemoteColumnToInsertQuery(int remoteColumnIndex, String remoteTableName, String localKeyColumn, String remoteKeyColumn, String localValueString, String remoteValueColumnToMatch, StringBuilder insertColumnListQueryPart, StringBuilder insertValueListQueryPart, StringBuilder insertFromRemoteTablePart, StringBuilder insertRemoteCondition)
+	{
+		String nRemoteTableName = "r"+remoteColumnIndex;
+		if(insertColumnListQueryPart.length()>0)
+			insertColumnListQueryPart.append(",");
+		
+		insertColumnListQueryPart.append(localKeyColumn);
+		
+		if(insertValueListQueryPart.length()>0)
+			insertValueListQueryPart.append(",");
+		
+		insertValueListQueryPart.append(""+nRemoteTableName+"."+remoteKeyColumn);
+		
+		if(insertFromRemoteTablePart.length()>0)
+			insertFromRemoteTablePart.append(",");
+		
+		insertFromRemoteTablePart.append(remoteTableName+" "+nRemoteTableName);
+		
+		if(insertRemoteCondition.length()>0)
+			insertRemoteCondition.append(" AND ");
+		
+		insertRemoteCondition.append("("+localKeyColumn+"="+nRemoteTableName+"."+remoteKeyColumn+" AND nRemoteTableName."+remoteValueColumnToMatch+"="+localValueString+ ")");
 	}
 	
 	/**

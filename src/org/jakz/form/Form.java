@@ -239,7 +239,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		writeable=source.writeable;
 		tablekey=source.tablekey;
 		
-		parameter=source.parameter;
+		//parameter=source.parameter;
 		
 		errorFlag=source.errorFlag;
 		errorMessage=source.errorMessage;
@@ -696,6 +696,11 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		return this;
 	}
 	
+	/**
+	 * Gets the first name of the DB path - the right-most name separated by dots.
+	 * @param source
+	 * @return
+	 */
 	public static String get1stLevelDBName(String source)
 	{
 		if(source==null)
@@ -709,6 +714,11 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		return toReturn;
 	}
 	
+	/**
+	 * Gets the second name of the DB path - the second right-most name separated by dots.
+	 * @param source
+	 * @return
+	 */
 	public static String get2ndLevelDBName(String source)
 	{
 		if(source==null)
