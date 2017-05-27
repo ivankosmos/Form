@@ -1,11 +1,7 @@
 package org.jakz.form;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 
-import org.jakz.common.TypedValue;
 import org.jakz.form.Form.FieldType;
 
 import nu.xom.Builder;
@@ -17,7 +13,7 @@ import nu.xom.Node;
 public class ConfirmitXMLFormProcessor 
 {
 	private InputStream sourceIS;
-	private Form targetForm, templateForm;
+	private Form targetForm;
 
 	private Integer languageCode;
 	private Boolean fallbackToFirstLanguageFound;
@@ -25,6 +21,23 @@ public class ConfirmitXMLFormProcessor
 	public ConfirmitXMLFormProcessor()
 	{
 		fallbackToFirstLanguageFound = true;
+	}
+	
+	protected void addStandardResponseColumns()
+	{
+		//add standard response columns
+		String dateFormat = "yyyy-MM-dd HH:mm:ss";
+		Form q;
+		if(!targetForm.getHasContent())
+			q = targetForm.addQuery("0");
+		else
+			q = targetForm.content.getValueAt(0);
+		
+		q.optVariable("responseid", java.sql.Types.BIGINT);
+		q.optVariable("respid", java.sql.Types.BIGINT);
+		q.optVariable("interview_start", java.sql.Types.TIMESTAMP).setValueParseFormat(dateFormat);
+		q.optVariable("interview_end", java.sql.Types.TIMESTAMP).setValueParseFormat(dateFormat);
+		q.optVariable("status", java.sql.Types.VARCHAR);
 	}
 	
 	public ConfirmitXMLFormProcessor setSource(InputStream nSource)
@@ -41,12 +54,6 @@ public class ConfirmitXMLFormProcessor
 	
 	public Form getTargetForm() {return targetForm;}
 	
-	public ConfirmitXMLFormProcessor setTemplate(Form nTemplate)
-	{
-		templateForm=nTemplate;
-		return this;
-	}
-	
 	public ConfirmitXMLFormProcessor setLanguageCode(Integer nLanguageCode)
 	{
 		languageCode=nLanguageCode;
@@ -61,6 +68,14 @@ public class ConfirmitXMLFormProcessor
 	
 	public ConfirmitXMLFormProcessor populateFormDataFromFile() throws FormException
 	{
+		
+		if(targetForm==null)
+		{
+			targetForm = new Form("ConfirmitXMLFormProcessorForm");
+		}
+		
+		addStandardResponseColumns();
+		
 		try
 		{
 			Builder xmlParser = new Builder();
@@ -96,7 +111,7 @@ public class ConfirmitXMLFormProcessor
 		return this;
 	}
 	
-	//TODO
+	//TODO - can be improved. does not cover all question types?
 	protected void populateFormDataFromQuestionElement(Form templateQueryRow, Node nQuestionElement) throws FormException
 	{
 		Element qe = (Element) nQuestionElement;
@@ -142,9 +157,12 @@ public class ConfirmitXMLFormProcessor
 						(languageCode==null&&fallbackToFirstLanguageFound!=null)
 				)
 				{
-					formTextTitle=formText.getFirstChildElement("Title").getValue();
-					formTextText=formText.getFirstChildElement("Text").getValue();
-					formTextInstruction=formText.getFirstChildElement("Instruction").getValue();
+					if(formText.getFirstChildElement("Title")!=null)
+						formTextTitle=formText.getFirstChildElement("Title").getValue();
+					if(formText.getFirstChildElement("Text")!=null)
+						formTextText=formText.getFirstChildElement("Text").getValue();
+					if(formText.getFirstChildElement("Instruction")!=null)
+						formTextInstruction=formText.getFirstChildElement("Instruction").getValue();
 					break;
 				}
 			}
@@ -160,7 +178,7 @@ public class ConfirmitXMLFormProcessor
 			targetVariable.text=formTextText;
 			targetVariable.instruction=formTextInstruction;
 			
-			if(localName.equals("Page")||localName.equals("StartBlock")||localName.equals("CallableBlock")||localName.equals("EndBlock"))
+			if(localName.equals("Folder")||localName.equals("Page")||localName.equals("StartBlock")||localName.equals("CallableBlock")||localName.equals("EndBlock"))
 			{
 				Element nodes = ((Element)nQuestionElement).getFirstChildElement("Nodes");
 				for(int i=0;nodes!=null&&i<nodes.getChildCount(); i++)

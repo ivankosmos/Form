@@ -17,114 +17,12 @@ import org.jakz.common.ApplicationException;
 import org.jakz.common.IndexedMap;
 import org.jakz.common.OperationException;
 import org.jakz.common.TypedValue;
+import org.jakz.common.util.DBUtil;
 import org.jakz.form.Form.FieldType;
 
 public class SSFormProcessor
 {
 	static final String tableNamePrefix ="_SSFP";
-	
-	public static String quotateSSString(Object source)
-	{
-		if (source==null)
-			return ""+null;
-		else
-			return "'"+source+"'";
-	}
-	
-	public static TypedValue setTypedValueFromSQLResultSet(TypedValue target, ResultSet r, String columnLabel) throws SQLException, OperationException
-	{
-		if(target.getType()==java.sql.Types.INTEGER)
-			target.setInteger(r.getInt(columnLabel));
-		else if(target.getType()==java.sql.Types.DOUBLE)
-			target.setDouble(r.getDouble(columnLabel));
-		else if(target.getType()==java.sql.Types.BOOLEAN)
-			target.setBoolean(r.getBoolean(columnLabel));
-		else if(target.getType()==java.sql.Types.VARCHAR)
-			target.setVarchar(r.getString(columnLabel));
-		else if(target.getType()==java.sql.Types.NVARCHAR)
-			target.setNvarchar(r.getString(columnLabel));
-		else if(target.getType()==java.sql.Types.TIMESTAMP)
-			target.setTimestamp(r.getTimestamp(columnLabel).getTime());
-		else if(target.getType()==java.sql.Types.BIGINT)
-			target.setBigint(r.getLong(columnLabel));
-		else
-			throw new OperationException("SQL type unknown to TypedValue");
-		
-		return target;
-	}
-	
-	public static void setPreparedStatementParameterFromTypedValue(PreparedStatement s, int psParameterNumber, TypedValue source, StringBuilder debugQuery) throws SQLException, OperationException
-	{	
-		String newQuery = null;
-		if(source.getType()==java.sql.Types.INTEGER)
-		{
-			if(source.getValueInteger()==null)
-				s.setNull(psParameterNumber, java.sql.Types.INTEGER);
-			else
-				s.setInt(psParameterNumber, source.getValueInteger());
-			if(debugQuery!=null)
-				newQuery=debugQuery.toString().replaceFirst("\\?", ""+source.getValueInteger());
-		}
-		else if(source.getType()==java.sql.Types.DOUBLE)
-		{
-			if(source.getValueDouble()==null)
-				s.setNull(psParameterNumber, java.sql.Types.DOUBLE);
-			else
-				s.setDouble(psParameterNumber, source.getValueDouble());
-			if(debugQuery!=null)
-				newQuery=debugQuery.toString().replaceFirst("\\?", ""+source.getValueDouble());
-		}
-		else if(source.getType()==java.sql.Types.BOOLEAN)
-		{
-			if(source.getValueBoolean()==null)
-				s.setNull(psParameterNumber, java.sql.Types.BOOLEAN);
-			else
-				s.setBoolean(psParameterNumber, source.getValueBoolean());
-			if(debugQuery!=null)
-				newQuery=debugQuery.toString().replaceFirst("\\?", quotateSSString(source.getValueBoolean()));
-		}
-		else if(source.getType()==java.sql.Types.VARCHAR)
-		{
-			if(source.getValueVarchar()==null)
-				s.setNull(psParameterNumber, java.sql.Types.VARCHAR);
-			else
-				s.setString(psParameterNumber, source.getValueVarchar());
-			if(debugQuery!=null)
-				newQuery=debugQuery.toString().replaceFirst("\\?", quotateSSString(source.getValueVarchar()));
-		}
-		else if(source.getType()==java.sql.Types.NVARCHAR)
-		{
-			if(source.getValueNVarchar()==null)
-				s.setNull(psParameterNumber, java.sql.Types.NVARCHAR);
-			else
-				s.setNString(psParameterNumber, source.getValueNVarchar());
-			if(debugQuery!=null)
-				newQuery=debugQuery.toString().replaceFirst("\\?", quotateSSString(source.getValueNVarchar()));
-		}
-		else if(source.getType()==java.sql.Types.TIMESTAMP)
-		{
-			if(source.getValueTimestamp()==null)
-				s.setNull(psParameterNumber, java.sql.Types.TIMESTAMP);
-			else
-				s.setTimestamp(psParameterNumber, new java.sql.Timestamp(source.getValueTimestamp()));
-			if(debugQuery!=null)
-				newQuery=debugQuery.toString().replaceFirst("\\?", quotateSSString(new java.sql.Timestamp(source.getValueTimestamp()).toString()));
-		}
-		else if(source.getType()==java.sql.Types.BIGINT)
-		{
-			if(source.getValueBigint()==null)
-				s.setNull(psParameterNumber, java.sql.Types.BIGINT);
-			else
-				s.setLong(psParameterNumber, source.getValueBigint());
-			if(debugQuery!=null)
-				newQuery=debugQuery.toString().replaceFirst("\\?", ""+source.getValueBigint());
-		}
-		else
-			throw new OperationException("SQL type unknown to SSFormProcessor.");
-		
-		if(debugQuery!=null)
-			debugQuery.replace(0, debugQuery.length(), newQuery);
-	}
 	
 	//TODO use modified DataEntry? Merge DataEntry and Form
 	//TODO create offset & limit functionality
@@ -160,7 +58,7 @@ public class SSFormProcessor
 				Form colVar = newQuery.content.getValueAt(iColumn);
 				try 
 				{
-					setTypedValueFromSQLResultSet(colVar.value,r, colVar.dataSourcePath);
+					DBUtil.setTypedValueFromSQLResultSet(colVar.value,r, colVar.dataSourcePath);
 				} catch (OperationException e) 
 				{
 					throw new FormException(e);
@@ -215,7 +113,7 @@ public class SSFormProcessor
 							//main table
 							//foreign table
 							//value must be populated with foreign key before this
-							SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iParameter++, var.value,debugQuery);
+							DBUtil.setPreparedStatementParameterFromTypedValue(s, iParameter++, var.value,debugQuery);
 							
 							if(var.getHasContent())
 							{
@@ -223,13 +121,13 @@ public class SSFormProcessor
 								for(int iAlt=0; iAlt<var.content.size(); iAlt++)
 								{
 									Form alt = var.content.getValueAt(iAlt);
-									SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iParameter++, alt.value,debugQuery);
+									DBUtil.setPreparedStatementParameterFromTypedValue(s, iParameter++, alt.value,debugQuery);
 									
 									if(alt.alternativeHasOtherField)
 									{
 										TypedValue otherValueField = new TypedValue();
 										otherValueField.setNvarchar(alt.getOtherValue());
-										SSFormProcessor.setPreparedStatementParameterFromTypedValue(s, iParameter++, otherValueField,debugQuery);
+										DBUtil.setPreparedStatementParameterFromTypedValue(s, iParameter++, otherValueField,debugQuery);
 									}
 								}
 							}
@@ -695,7 +593,7 @@ public class SSFormProcessor
 			resultSet.getObject(columnIndex);
 			if(!resultSet.wasNull())
 			{	
-				setTypedValueFromSQLResultSet(tv, resultSet, columnName);
+				DBUtil.setTypedValueFromSQLResultSet(tv, resultSet, columnName);
 			}
 		}
 		
@@ -788,6 +686,7 @@ public class SSFormProcessor
 		return s.toString();
 	}
 	
+	//TODO - the table is not versioned yet
 	public static String scriptDynamicSQLCreateVersionedTable(Form source, boolean addIdentityColumn) throws FormException
 	{
 		StringBuilder s = new StringBuilder();

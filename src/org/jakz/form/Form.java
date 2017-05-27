@@ -335,6 +335,13 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		return nf;
 	}
 	
+	public Form optVariable(String nId)
+	{
+		Form nf = new Form(nId,FieldType.VAR);
+		opt(nf);
+		return content.getValue(nId);
+	}
+	
 	public Form addVariable(String nId, int nType)
 	{
 		Form nf = new Form(nId,FieldType.VAR).setValueType(nType);
@@ -342,11 +349,25 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		return nf;
 	}
 	
+	public Form optVariable(String nId, int nType)
+	{
+		Form nf = new Form(nId,FieldType.VAR).setValueType(nType);
+		opt(nf);
+		return content.getValue(nId);
+	}
+	
 	public Form addVariable(String nId, int nType, int nSizeLimit)
 	{
 		Form nf = new Form(nId,FieldType.VAR).setValueType(nType,nSizeLimit);
 		add(nf);
 		return nf;
+	}
+	
+	public Form optVariable(String nId, int nType, int nSizeLimit)
+	{
+		Form nf = new Form(nId,FieldType.VAR).setValueType(nType,nSizeLimit);
+		opt(nf);
+		return content.getValue(nId);
 	}
 	
 	public Form addAlternative(String nId)
@@ -566,7 +587,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 		j.put("writeable",writeable);
 		j.put("tablekey",tablekey);
 		
-		j.put("parameter",parameter.getMap());
+		j.put("parameter",parameter.map());
 		
 		j.put("errorFlag",errorFlag);
 		j.put("errorMessage",errorMessage);
@@ -637,7 +658,7 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	}
 	
 	/**
-	 * Returns parent form in relation. The added form is a child.
+	 * Returns added child form in relation. The added form is a child.
 	 * @param nContent
 	 * @return
 	 */
@@ -645,7 +666,19 @@ public class Form implements JSONObjectReadAspect, JSONObjectWriteAspect
 	{
 		content.put(nContent.id, nContent);
 		nContent.parent=this;
-		return this;
+		return nContent;
+	}
+	
+	/**
+	 * Returns added or existing child form in relation. The added form is a child.
+	 * @param nContent
+	 * @return
+	 */
+	public Form opt(Form nContent)
+	{
+		content.opt(nContent.id, nContent);
+		nContent.parent=this;
+		return content.getValue(nContent.id);
 	}
 	
 	protected org.jakz.common.JSONObject getValues(org.jakz.common.JSONObject toReturn)
