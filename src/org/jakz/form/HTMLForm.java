@@ -6,7 +6,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
 
-import org.apache.commons.lang.StringEscapeUtils;
+import org.apache.commons.text.StringEscapeUtils;
 import org.jakz.common.JSONObject;
 import org.jakz.common.TypedValue;
 import org.jsoup.nodes.Element;
@@ -71,7 +71,7 @@ public class HTMLForm extends Form
 	
 	public String getHTMLGlobalID()
 	{
-		return StringEscapeUtils.escapeHtml(super.getHTMLGlobalID());
+		return StringEscapeUtils.escapeHtml3(super.getHTMLGlobalID());
 	}
 	
 	public String toString()
